@@ -6,9 +6,9 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { classifyRoster } from './classifier.ts';
-import { DEFAULT_CONFIG } from './types.ts';
-import type { ClassifierConfig, Icon, ScoredUma } from './types.ts';
+import { classifyRoster } from './classifier.js';
+import { DEFAULT_CONFIG } from './types.js';
+import type { ClassifierConfig, Icon, ScoredUma } from './types.js';
 
 const ICON_DISPLAY: Record<Icon, string> = {
   speed:   '🧋 Speed',
@@ -23,6 +23,7 @@ const ICON_DISPLAY: Record<Icon, string> = {
   mid:     '👟 Mid',
   long:    '👟 Long',
   heart:   '♥  Heart (skill)',
+  clubs:   '♣  Debuffer',
   ace:     '♠  Ace',
   trash:   '🗑️  Trash',
 };
@@ -30,7 +31,7 @@ const ICON_DISPLAY: Record<Icon, string> = {
 const ICON_ORDER: Icon[] = [
   'speed', 'stamina', 'power', 'guts', 'wit',
   'turf', 'dirt', 'sprint', 'mile', 'mid', 'long',
-  'heart', 'ace', 'trash',
+  'heart', 'clubs', 'ace', 'trash',
 ];
 
 function parseArgs() {

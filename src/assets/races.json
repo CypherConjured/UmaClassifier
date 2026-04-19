@@ -1,0 +1,836 @@
+[
+    {
+        "group_id": 37,
+        "race_id": 1023,
+        "race_name": "Arima Kinen",
+        "saddle_id": 10
+    },
+    {
+        "group_id": 33,
+        "race_id": 1019,
+        "race_name": "Japan C.",
+        "saddle_id": 11
+    },
+    {
+        "group_id": 22,
+        "race_id": 1010,
+        "race_name": "Japanese Derby",
+        "saddle_id": 12
+    },
+    {
+        "group_id": 18,
+        "race_id": 1006,
+        "race_name": "Tenno Sho (Spring)",
+        "saddle_id": 13
+    },
+    {
+        "group_id": 24,
+        "race_id": 1012,
+        "race_name": "Takarazuka Kinen",
+        "saddle_id": 14
+    },
+    {
+        "group_id": 30,
+        "race_id": 1016,
+        "race_name": "Tenno Sho (Autumn)",
+        "saddle_id": 15
+    },
+    {
+        "group_id": 28,
+        "race_id": 1015,
+        "race_name": "Kikuka Sho",
+        "saddle_id": 16
+    },
+    {
+        "group_id": 15,
+        "race_id": 1003,
+        "race_name": "Osaka Hai",
+        "saddle_id": 17
+    },
+    {
+        "group_id": 17,
+        "race_id": 1005,
+        "race_name": "Satsuki Sho",
+        "saddle_id": 18
+    },
+    {
+        "group_id": 21,
+        "race_id": 1009,
+        "race_name": "Japanese Oaks",
+        "saddle_id": 19
+    },
+    {
+        "group_id": 14,
+        "race_id": 1002,
+        "race_name": "Takamatsunomiya Kinen",
+        "saddle_id": 20
+    },
+    {
+        "group_id": 23,
+        "race_id": 1011,
+        "race_name": "Yasuda Kinen",
+        "saddle_id": 21
+    },
+    {
+        "group_id": 26,
+        "race_id": 1013,
+        "race_name": "Sprinters S.",
+        "saddle_id": 22
+    },
+    {
+        "group_id": 32,
+        "race_id": 1018,
+        "race_name": "Mile Ch.",
+        "saddle_id": 23
+    },
+    {
+        "group_id": 16,
+        "race_id": 1004,
+        "race_name": "Oka Sho",
+        "saddle_id": 24
+    },
+    {
+        "group_id": 20,
+        "race_id": 1008,
+        "race_name": "Victoria Mile",
+        "saddle_id": 25
+    },
+    {
+        "group_id": 31,
+        "race_id": 1017,
+        "race_name": "Queen Elizabeth II Cup",
+        "saddle_id": 26
+    },
+    {
+        "group_id": 19,
+        "race_id": 1007,
+        "race_name": "NHK Mile C.",
+        "saddle_id": 27
+    },
+    {
+        "group_id": 27,
+        "race_id": 1014,
+        "race_name": "Shuka Sho",
+        "saddle_id": 28
+    },
+    {
+        "group_id": 34,
+        "race_id": 1020,
+        "race_name": "Champions C.",
+        "saddle_id": 29
+    },
+    {
+        "group_id": 13,
+        "race_id": 1001,
+        "race_name": "February S.",
+        "saddle_id": 30
+    },
+    {
+        "group_id": 43,
+        "race_id": 1105,
+        "race_name": "JBC Classic",
+        "saddle_id": 31
+    },
+    {
+        "group_id": 44,
+        "race_id": 1106,
+        "race_name": "Tokyo Daishoten",
+        "saddle_id": 32
+    },
+    {
+        "group_id": 36,
+        "race_id": 1022,
+        "race_name": "Asahi Hai F.S.",
+        "saddle_id": 33
+    },
+    {
+        "group_id": 38,
+        "race_id": 1024,
+        "race_name": "Hopeful S.",
+        "saddle_id": 34
+    },
+    {
+        "group_id": 35,
+        "race_id": 1021,
+        "race_name": "Hanshin J.F.",
+        "saddle_id": 35
+    },
+    {
+        "group_id": 39,
+        "race_id": 1101,
+        "race_name": "Teio Sho",
+        "saddle_id": 36
+    },
+    {
+        "group_id": 42,
+        "race_id": 1104,
+        "race_name": "JBC Sprint",
+        "saddle_id": 37
+    },
+    {
+        "group_id": 40,
+        "race_id": 1102,
+        "race_name": "J.D. Derby",
+        "saddle_id": 38
+    },
+    {
+        "group_id": 41,
+        "race_id": 1103,
+        "race_name": "JBC L. Classic",
+        "saddle_id": 39
+    },
+    {
+        "group_id": 45,
+        "race_id": 2001,
+        "race_name": "Nikkei Shinshun Hai",
+        "saddle_id": 40
+    },
+    {
+        "group_id": 46,
+        "race_id": 2002,
+        "race_name": "Tokai S.",
+        "saddle_id": 41
+    },
+    {
+        "group_id": 47,
+        "race_id": 2003,
+        "race_name": "American JCC",
+        "saddle_id": 42
+    },
+    {
+        "group_id": 48,
+        "race_id": 2004,
+        "race_name": "Kyoto Kinen",
+        "saddle_id": 43
+    },
+    {
+        "group_id": 49,
+        "race_id": 2005,
+        "race_name": "Nakayama Kinen",
+        "saddle_id": 44
+    },
+    {
+        "group_id": 50,
+        "race_id": 2006,
+        "race_name": "Yayoi Sho",
+        "saddle_id": 45
+    },
+    {
+        "group_id": 51,
+        "race_id": 2007,
+        "race_name": "Kinko Sho",
+        "saddle_id": 46
+    },
+    {
+        "group_id": 52,
+        "race_id": 2008,
+        "race_name": "Fillies' Revue",
+        "saddle_id": 47
+    },
+    {
+        "group_id": 53,
+        "race_id": 2009,
+        "race_name": "Hanshin Daishoten",
+        "saddle_id": 48
+    },
+    {
+        "group_id": 54,
+        "race_id": 2010,
+        "race_name": "Spring S.",
+        "saddle_id": 49
+    },
+    {
+        "group_id": 56,
+        "race_id": 2011,
+        "race_name": "Nikkei Sho",
+        "saddle_id": 50
+    },
+    {
+        "group_id": 57,
+        "race_id": 2012,
+        "race_name": "Hanshin Umamusume S.",
+        "saddle_id": 51
+    },
+    {
+        "group_id": 58,
+        "race_id": 2013,
+        "race_name": "New Zealand T.",
+        "saddle_id": 52
+    },
+    {
+        "group_id": 59,
+        "race_id": 2014,
+        "race_name": "Yomiuri Milers C.",
+        "saddle_id": 53
+    },
+    {
+        "group_id": 60,
+        "race_id": 2015,
+        "race_name": "Flora S.",
+        "saddle_id": 54
+    },
+    {
+        "group_id": 61,
+        "race_id": 2016,
+        "race_name": "Aoba Sho",
+        "saddle_id": 55
+    },
+    {
+        "group_id": 62,
+        "race_id": 2017,
+        "race_name": "Kyoto Shimbun Hai",
+        "saddle_id": 56
+    },
+    {
+        "group_id": 63,
+        "race_id": 2018,
+        "race_name": "Keio Hai Spring C.",
+        "saddle_id": 57
+    },
+    {
+        "group_id": 64,
+        "race_id": 2019,
+        "race_name": "Meguro Kinen",
+        "saddle_id": 58
+    },
+    {
+        "group_id": 65,
+        "race_id": 2020,
+        "race_name": "Sapporo Kinen",
+        "saddle_id": 59
+    },
+    {
+        "group_id": 66,
+        "race_id": 2021,
+        "race_name": "Centaur S.",
+        "saddle_id": 60
+    },
+    {
+        "group_id": 67,
+        "race_id": 2022,
+        "race_name": "Rose S.",
+        "saddle_id": 61
+    },
+    {
+        "group_id": 68,
+        "race_id": 2023,
+        "race_name": "St. Lite Kinen",
+        "saddle_id": 62
+    },
+    {
+        "group_id": 69,
+        "race_id": 2024,
+        "race_name": "Kobe Shimbun Hai",
+        "saddle_id": 63
+    },
+    {
+        "group_id": 70,
+        "race_id": 2025,
+        "race_name": "All Comers",
+        "saddle_id": 64
+    },
+    {
+        "group_id": 71,
+        "race_id": 2026,
+        "race_name": "Mainichi Okan",
+        "saddle_id": 65
+    },
+    {
+        "group_id": 72,
+        "race_id": 2027,
+        "race_name": "Kyoto Daishoten",
+        "saddle_id": 66
+    },
+    {
+        "group_id": 73,
+        "race_id": 2028,
+        "race_name": "Fuchu Umamusume S.",
+        "saddle_id": 67
+    },
+    {
+        "group_id": 74,
+        "race_id": 2029,
+        "race_name": "Swan S.",
+        "saddle_id": 68
+    },
+    {
+        "group_id": 75,
+        "race_id": 2030,
+        "race_name": "Keio Hai Junior S.",
+        "saddle_id": 69
+    },
+    {
+        "group_id": 76,
+        "race_id": 2031,
+        "race_name": "Copa Republica Argentina",
+        "saddle_id": 70
+    },
+    {
+        "group_id": 77,
+        "race_id": 2032,
+        "race_name": "Daily Hai Junior S.",
+        "saddle_id": 71
+    },
+    {
+        "group_id": 78,
+        "race_id": 2033,
+        "race_name": "Stayers S.",
+        "saddle_id": 72
+    },
+    {
+        "group_id": 79,
+        "race_id": 2034,
+        "race_name": "Hanshin C.",
+        "saddle_id": 73
+    },
+    {
+        "group_id": 80,
+        "race_id": 3001,
+        "race_name": "Kyoto Kimpai",
+        "saddle_id": 74
+    },
+    {
+        "group_id": 81,
+        "race_id": 3002,
+        "race_name": "Nakayama Kimpai",
+        "saddle_id": 75
+    },
+    {
+        "group_id": 82,
+        "race_id": 3003,
+        "race_name": "Shinzan Kinen",
+        "saddle_id": 76
+    },
+    {
+        "group_id": 83,
+        "race_id": 3004,
+        "race_name": "Fairy S.",
+        "saddle_id": 77
+    },
+    {
+        "group_id": 84,
+        "race_id": 3005,
+        "race_name": "Aichi Hai",
+        "saddle_id": 78
+    },
+    {
+        "group_id": 85,
+        "race_id": 3006,
+        "race_name": "Keisei Hai",
+        "saddle_id": 79
+    },
+    {
+        "group_id": 86,
+        "race_id": 3007,
+        "race_name": "Silk Road S.",
+        "saddle_id": 80
+    },
+    {
+        "group_id": 87,
+        "race_id": 3008,
+        "race_name": "Negishi S.",
+        "saddle_id": 81
+    },
+    {
+        "group_id": 88,
+        "race_id": 3009,
+        "race_name": "Kisaragi Sho",
+        "saddle_id": 82
+    },
+    {
+        "group_id": 89,
+        "race_id": 3010,
+        "race_name": "Tokyo Shimbun Hai",
+        "saddle_id": 83
+    },
+    {
+        "group_id": 90,
+        "race_id": 3011,
+        "race_name": "Queen C.",
+        "saddle_id": 84
+    },
+    {
+        "group_id": 91,
+        "race_id": 3012,
+        "race_name": "Kyodo News Hai",
+        "saddle_id": 85
+    },
+    {
+        "group_id": 92,
+        "race_id": 3013,
+        "race_name": "Kyoto Umamusume S.",
+        "saddle_id": 86
+    },
+    {
+        "group_id": 93,
+        "race_id": 3014,
+        "race_name": "Diamond S.",
+        "saddle_id": 87
+    },
+    {
+        "group_id": 94,
+        "race_id": 3015,
+        "race_name": "Kokura Daishoten",
+        "saddle_id": 88
+    },
+    {
+        "group_id": 95,
+        "race_id": 3016,
+        "race_name": "Arlington C.",
+        "saddle_id": 89
+    },
+    {
+        "group_id": 96,
+        "race_id": 3017,
+        "race_name": "Hankyu Hai",
+        "saddle_id": 90
+    },
+    {
+        "group_id": 97,
+        "race_id": 3018,
+        "race_name": "Tulip Sho",
+        "saddle_id": 91
+    },
+    {
+        "group_id": 98,
+        "race_id": 3019,
+        "race_name": "Ocean S.",
+        "saddle_id": 92
+    },
+    {
+        "group_id": 99,
+        "race_id": 3020,
+        "race_name": "Nakayama Umamusume S.",
+        "saddle_id": 93
+    },
+    {
+        "group_id": 100,
+        "race_id": 3021,
+        "race_name": "Falcon S.",
+        "saddle_id": 94
+    },
+    {
+        "group_id": 101,
+        "race_id": 3022,
+        "race_name": "Flower C.",
+        "saddle_id": 95
+    },
+    {
+        "group_id": 102,
+        "race_id": 3023,
+        "race_name": "Mainichi Hai",
+        "saddle_id": 96
+    },
+    {
+        "group_id": 103,
+        "race_id": 3024,
+        "race_name": "March S.",
+        "saddle_id": 97
+    },
+    {
+        "group_id": 104,
+        "race_id": 3025,
+        "race_name": "Lord Derby C.T.",
+        "saddle_id": 98
+    },
+    {
+        "group_id": 105,
+        "race_id": 3026,
+        "race_name": "Antares S.",
+        "saddle_id": 99
+    },
+    {
+        "group_id": 106,
+        "race_id": 3027,
+        "race_name": "Fukushima Umamusume S.",
+        "saddle_id": 100
+    },
+    {
+        "group_id": 107,
+        "race_id": 3028,
+        "race_name": "Niigata Daishoten",
+        "saddle_id": 101
+    },
+    {
+        "group_id": 108,
+        "race_id": 3029,
+        "race_name": "Heian S.",
+        "saddle_id": 102
+    },
+    {
+        "group_id": 110,
+        "race_id": 3030,
+        "race_name": "Naruo Kinen",
+        "saddle_id": 103
+    },
+    {
+        "group_id": 111,
+        "race_id": 3031,
+        "race_name": "Mermaid S.",
+        "saddle_id": 104
+    },
+    {
+        "group_id": 112,
+        "race_id": 3032,
+        "race_name": "Epsom C.",
+        "saddle_id": 105
+    },
+    {
+        "group_id": 113,
+        "race_id": 3033,
+        "race_name": "Unicorn S.",
+        "saddle_id": 106
+    },
+    {
+        "group_id": 114,
+        "race_id": 3034,
+        "race_name": "Hakodate Sprint S.",
+        "saddle_id": 107
+    },
+    {
+        "group_id": 115,
+        "race_id": 3035,
+        "race_name": "CBC Sho",
+        "saddle_id": 108
+    },
+    {
+        "group_id": 116,
+        "race_id": 3036,
+        "race_name": "Radio Nikkei Sho",
+        "saddle_id": 109
+    },
+    {
+        "group_id": 117,
+        "race_id": 3037,
+        "race_name": "Procyon S.",
+        "saddle_id": 110
+    },
+    {
+        "group_id": 118,
+        "race_id": 3038,
+        "race_name": "Tanabata Sho",
+        "saddle_id": 111
+    },
+    {
+        "group_id": 119,
+        "race_id": 3039,
+        "race_name": "Hakodate Kinen",
+        "saddle_id": 112
+    },
+    {
+        "group_id": 120,
+        "race_id": 3040,
+        "race_name": "Chukyo Kinen",
+        "saddle_id": 113
+    },
+    {
+        "group_id": 121,
+        "race_id": 3041,
+        "race_name": "Hakodate Junior S.",
+        "saddle_id": 114
+    },
+    {
+        "group_id": 122,
+        "race_id": 3042,
+        "race_name": "Ibis Summer D.",
+        "saddle_id": 115
+    },
+    {
+        "group_id": 123,
+        "race_id": 3043,
+        "race_name": "Queen S.",
+        "saddle_id": 116
+    },
+    {
+        "group_id": 124,
+        "race_id": 3044,
+        "race_name": "Kokura Kinen",
+        "saddle_id": 117
+    },
+    {
+        "group_id": 125,
+        "race_id": 3045,
+        "race_name": "Leopard S.",
+        "saddle_id": 118
+    },
+    {
+        "group_id": 126,
+        "race_id": 3046,
+        "race_name": "Sekiya Kinen",
+        "saddle_id": 119
+    },
+    {
+        "group_id": 127,
+        "race_id": 3047,
+        "race_name": "Elm S.",
+        "saddle_id": 120
+    },
+    {
+        "group_id": 128,
+        "race_id": 3048,
+        "race_name": "Kitakyushu Kinen",
+        "saddle_id": 121
+    },
+    {
+        "group_id": 129,
+        "race_id": 3049,
+        "race_name": "Niigata Junior S.",
+        "saddle_id": 122
+    },
+    {
+        "group_id": 130,
+        "race_id": 3050,
+        "race_name": "Keeneland C.",
+        "saddle_id": 123
+    },
+    {
+        "group_id": 131,
+        "race_id": 3051,
+        "race_name": "Sapporo Junior S.",
+        "saddle_id": 124
+    },
+    {
+        "group_id": 132,
+        "race_id": 3052,
+        "race_name": "Kokura Junior S.",
+        "saddle_id": 125
+    },
+    {
+        "group_id": 133,
+        "race_id": 3053,
+        "race_name": "Niigata Kinen",
+        "saddle_id": 126
+    },
+    {
+        "group_id": 134,
+        "race_id": 3054,
+        "race_name": "Shion S.",
+        "saddle_id": 127
+    },
+    {
+        "group_id": 135,
+        "race_id": 3055,
+        "race_name": "Keisei Hai A.H.",
+        "saddle_id": 128
+    },
+    {
+        "group_id": 136,
+        "race_id": 3056,
+        "race_name": "Sirius S.",
+        "saddle_id": 129
+    },
+    {
+        "group_id": 137,
+        "race_id": 3057,
+        "race_name": "Saudi Arabia R.C.",
+        "saddle_id": 130
+    },
+    {
+        "group_id": 138,
+        "race_id": 3058,
+        "race_name": "Fuji S.",
+        "saddle_id": 131
+    },
+    {
+        "group_id": 139,
+        "race_id": 3059,
+        "race_name": "Artemis S.",
+        "saddle_id": 132
+    },
+    {
+        "group_id": 140,
+        "race_id": 3060,
+        "race_name": "Fantasy S.",
+        "saddle_id": 133
+    },
+    {
+        "group_id": 141,
+        "race_id": 3061,
+        "race_name": "Miyako S.",
+        "saddle_id": 134
+    },
+    {
+        "group_id": 142,
+        "race_id": 3062,
+        "race_name": "Musashino S.",
+        "saddle_id": 135
+    },
+    {
+        "group_id": 143,
+        "race_id": 3063,
+        "race_name": "Fukushima Kinen",
+        "saddle_id": 136
+    },
+    {
+        "group_id": 144,
+        "race_id": 3064,
+        "race_name": "Tokyo Sports Hai Junior S.",
+        "saddle_id": 137
+    },
+    {
+        "group_id": 145,
+        "race_id": 3065,
+        "race_name": "Kyoto Junior S.",
+        "saddle_id": 138
+    },
+    {
+        "group_id": 146,
+        "race_id": 3066,
+        "race_name": "Keihan Hai",
+        "saddle_id": 139
+    },
+    {
+        "group_id": 147,
+        "race_id": 3067,
+        "race_name": "Challenge C.",
+        "saddle_id": 140
+    },
+    {
+        "group_id": 148,
+        "race_id": 3068,
+        "race_name": "Chunichi Shimbun Hai",
+        "saddle_id": 141
+    },
+    {
+        "group_id": 149,
+        "race_id": 3069,
+        "race_name": "Capella S.",
+        "saddle_id": 142
+    },
+    {
+        "group_id": 150,
+        "race_id": 3070,
+        "race_name": "Turquoise S.",
+        "saddle_id": 143
+    },
+    {
+        "group_id": 24,
+        "race_id": 1025,
+        "race_name": "Takarazuka Kinen",
+        "saddle_id": 147
+    },
+    {
+        "group_id": 28,
+        "race_id": 1026,
+        "race_name": "Kikuka Sho",
+        "saddle_id": 148
+    },
+    {
+        "group_id": 54,
+        "race_id": 2035,
+        "race_name": "Spring S.",
+        "saddle_id": 149
+    },
+    {
+        "group_id": 109,
+        "race_id": 4050,
+        "race_name": "Aoi S.",
+        "saddle_id": 150
+    },
+    {
+        "group_id": 18,
+        "race_id": 1027,
+        "race_name": "Tenno Sho (Spring)",
+        "saddle_id": 153
+    }
+]

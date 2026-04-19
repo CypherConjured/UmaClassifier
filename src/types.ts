@@ -75,6 +75,7 @@ export type Icon =
   | 'long'      // 👟 long shoe
   | 'heart'     // ♥ exceptional white sparks
   | 'ace'       // ♠ racing fallback
+  | 'clubs'     // ♣ debuffer
   | 'trash';    // 🗑️ transfer candidate
 
 // ─── Scored uma ───────────────────────────────────────────────────────────────
@@ -88,6 +89,7 @@ export interface ScoredUma {
   is_locked: boolean;
   scores: CategoryScores;   // score per icon category
   white_total: number;      // raw total white stars (own + weighted parents)
+  debuff_score: number;
   assigned_icon: Icon | null;
 }
 
@@ -105,22 +107,22 @@ export interface ClassifierConfig {
   // Weights for own vs parent vs grandparent factors
   weights: {
     own: number;
-    parent: number;       // position_id 10 or 20
-    grandparent: number;  // position_id 11, 12, 21, 22
+    parent: number; // position_id 10 or 20 only; grandparents are ignored
   };
   // Extra multiplier applied to white stars when rolling into category score
-  whiteMultiplier: number;
+  whiteSkillMultiplier: number;
+  whiteStatBoostMultiplier: number;
 }
 
 export const DEFAULT_CONFIG: ClassifierConfig = {
   keepPerCategory: 7,
   minCategoryScore: 2,
-  heartWhiteThreshold: 6,
+  heartWhiteThreshold: 50,
   aceScoreThreshold: 11000,
   weights: {
     own: 3,
     parent: 1.5,
-    grandparent: 0.5,
   },
-  whiteMultiplier: 0.1,
+  whiteSkillMultiplier: 1,
+  whiteStatBoostMultiplier: 0.5,
 };
