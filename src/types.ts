@@ -62,7 +62,7 @@ export interface DecodedFactor {
 // ─── Icon / favorite mark ─────────────────────────────────────────────────────
 
 export type Icon =
-  | 'speed'     // 🧋 boba
+  | 'speed'     // 🥤 boba
   | 'stamina'   // 🍚 rice bowl
   | 'power'     // 🍫 choco cake
   | 'guts'      // 🥕 carrot

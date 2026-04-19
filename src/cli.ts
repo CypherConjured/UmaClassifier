@@ -6,12 +6,12 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { classifyRoster } from './classifier.js';
-import { DEFAULT_CONFIG } from './types.js';
-import type { ClassifierConfig, Icon, ScoredUma } from './types.js';
+import { classifyRoster } from './classifier.ts';
+import { DEFAULT_CONFIG } from './types.ts';
+import type { ClassifierConfig, Icon, ScoredUma } from './types.ts';
 
 const ICON_DISPLAY: Record<Icon, string> = {
-  speed:   '🧋 Speed',
+  speed:   '🥤 Speed',
   stamina: '🍚 Stamina',
   power:   '🍫 Power',
   guts:    '🥕 Guts',

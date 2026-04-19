@@ -1,4 +1,4 @@
-import { lookupFactor } from './loader.js';
+import { lookupFactor } from './loader.ts';
 import type {
   RawUma,
   RawParent,
@@ -6,7 +6,7 @@ import type {
   CategoryScores,
   Icon,
   ClassifierConfig,
-} from './types.js';
+} from './types.ts';
 
 const ICON_CATEGORIES: Icon[] = [
   'speed', 'stamina', 'power', 'guts', 'wit',
