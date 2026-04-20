@@ -98,6 +98,10 @@ export interface ScoredUma {
 export interface ClassifierConfig {
   // How many top umas to keep per icon category
   keepPerCategory: number;
+  // How many top aces to keep
+  keepAce: number;
+  // How many umas to keep for white skills
+  keepHeart: number;
   // Minimum score to even be considered for a category (avoids noise)
   minCategoryScore: number;
   // White star total threshold to qualify for heart icon
@@ -116,6 +120,8 @@ export interface ClassifierConfig {
 
 export const DEFAULT_CONFIG: ClassifierConfig = {
   keepPerCategory: 7,
+  keepAce: 20,
+  keepHeart: 20,
   minCategoryScore: 2,
   heartWhiteThreshold: 50,
   aceScoreThreshold: 11000,

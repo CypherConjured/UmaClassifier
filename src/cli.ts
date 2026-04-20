@@ -8,6 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { classifyRoster } from './classifier.ts';
 import { DEFAULT_CONFIG } from './types.ts';
+import { lookupCharName } from './loader.ts';
 import type { ClassifierConfig, Icon, ScoredUma } from './types.ts';
 
 const ICON_DISPLAY: Record<Icon, string> = {
@@ -94,7 +95,8 @@ function printTable(results: ScoredUma[]) {
       const lock = uma.is_locked ? '🔒' : '  ';
       const whites = `whites:${uma.white_total.toFixed(1)}`;
       const scores = topScores(uma);
-      console.log(`  ${lock} card:${uma.card_id}  id:${uma.trained_chara_id}  rs:${uma.rank_score}  ${whites}  [${scores}]`);
+      const uma_name = lookupCharName(uma.card_id).padEnd(20);
+      console.log(`  ${lock} rs:${uma.rank_score} ${uma_name}  ${whites}  [${scores}]`);
     }
     console.log();
   }
