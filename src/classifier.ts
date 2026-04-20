@@ -3,6 +3,7 @@ import type { FactorEntry } from './loader.ts';
 import type {
   RawUma,
   ScoredUma,
+  ScoredWhite,
   CategoryScores,
   Icon,
   ClassifierConfig,
@@ -10,12 +11,12 @@ import type {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const GROUNDWORK_ID_BASE     = 201601;
-const TAIL_HELD_HIGH_ID_BASE = 201611;
+const GROUNDWORK_ID_BASE = 2016001;
+const TAIL_HELD_HIGH_ID_BASE = 2016101;
 
-const APTITUDE_PINKS = new Set(['turf','dirt','sprint','mile','mid','long']);
-const STYLE_PINKS    = new Set(['front','pace','late','end']);
-const ALL_PINKS      = new Set([...APTITUDE_PINKS, ...STYLE_PINKS]);
+const APTITUDE_PINKS = new Set(['turf', 'dirt', 'sprint', 'mile', 'mid', 'long']);
+const STYLE_PINKS = new Set(['front', 'pace', 'late', 'end']);
+const ALL_PINKS = new Set([...APTITUDE_PINKS, ...STYLE_PINKS]);
 
 const ICON_CATEGORIES: Icon[] = [
   'speed', 'stamina', 'power', 'guts', 'wit',
@@ -32,8 +33,7 @@ function specialBonus(
   factor_id: number,
   pinkStars: Map<string, number>
 ): number {
-  // Strip rarity suffix to get base ID (last digit = rarity 1-3)
-  const base = factor_id - (factor_id % 10) + 1;
+  const base = Math.floor(factor_id / 10) * 10 + 1;
   if (base === GROUNDWORK_ID_BASE) {
     return (pinkStars.get('front') ?? 0) > 0 ? 2.0 : 1.5;
   }
@@ -49,8 +49,8 @@ function pinkMultiplier(
 ): number {
   const cats = [
     ...(f.style_cats ?? []),
-    ...(f.dist_cats  ?? []),
-    ...(f.surf_cats  ?? []),
+    ...(f.dist_cats ?? []),
+    ...(f.surf_cats ?? []),
   ];
   if (cats.length === 0) return 1.0; // generic — no penalty or bonus
   const matching = cats.reduce((sum, cat) => sum + (pinkStars.get(cat) ?? 0), 0);
@@ -114,18 +114,24 @@ function scoreAptitudePinks(
 function scoreWhites(
   factor_ids: number[],
   weight: number,
+  source: 'own' | 'parent',
   scores: CategoryScores,
   whiteTotal: { value: number },
   debuffScore: { value: number },
   pinkStars: Map<string, number>,
+  whitesOut: ScoredWhite[],
   config: ClassifierConfig
 ): void {
   for (const fid of factor_ids) {
     const f = lookupFactor(fid);
     if (!f || f.type !== 'white') continue;
 
-    const value = whiteValue(f, fid, weight, pinkStars);
-    whiteTotal.value += value;
+    const pm = pinkMultiplier(f, pinkStars);
+    const sb = specialBonus(fid, pinkStars);
+    const raw = f.stars * weight;
+    const final_value = raw * pm * sb;
+
+    whiteTotal.value += final_value;
 
     if (f.is_debuff) {
       debuffScore.value += f.stars * weight;
@@ -133,15 +139,29 @@ function scoreWhites(
 
     if (f.stat_boost) {
       scores[f.stat_boost] = (scores[f.stat_boost] ?? 0) +
-        value * config.whiteStatBoostMultiplier;
+        final_value * config.whiteStatBoostMultiplier;
     }
 
     for (const cat of (f.dist_cats ?? [])) {
-      scores[cat] = (scores[cat] ?? 0) + value * config.whiteSkillMultiplier;
+      scores[cat] = (scores[cat] ?? 0) + final_value * config.whiteSkillMultiplier;
     }
     for (const cat of (f.surf_cats ?? [])) {
-      scores[cat] = (scores[cat] ?? 0) + value * config.whiteSkillMultiplier;
+      scores[cat] = (scores[cat] ?? 0) + final_value * config.whiteSkillMultiplier;
     }
+
+    whitesOut.push({
+      name: f.name,
+      stars: f.stars,
+      raw_value: raw,
+      pink_multiplier: pm,
+      special_bonus: sb,
+      final_value,
+      dist_cats: f.dist_cats ?? [],
+      style_cats: f.style_cats ?? [],
+      surf_cats: f.surf_cats ?? [],
+      is_debuff: f.is_debuff ?? false,
+      source,
+    });
   }
 }
 
@@ -149,27 +169,28 @@ function scoreWhites(
 
 function scoreUma(uma: RawUma, config: ClassifierConfig): ScoredUma {
   const scores: CategoryScores = {};
-  const whiteTotal  = { value: 0 };
+  const whiteTotal = { value: 0 };
   const debuffScore = { value: 0 };
-  const pinkStars   = new Map<string, number>();
+  const pinkStars = new Map<string, number>();
+  const whites: ScoredWhite[] = [];
 
   const directParents = uma.succession_chara_array.filter(
     p => isDirectParent(p.position_id)
   );
 
-  // Pass 1: collect all pink stars (own + parents) for multiplier calculation
+  // Pass 1: collect all pink stars for multiplier calculation
   collectPinks(uma.factor_id_array, pinkStars);
   for (const p of directParents) collectPinks(p.factor_id_array, pinkStars);
 
-  // Pass 2: score blues, aptitude pinks, and whites
+  // Pass 2: score everything
   scoreBlues(uma.factor_id_array, config.weights.own, scores);
   scoreAptitudePinks(uma.factor_id_array, config.weights.own, scores);
-  scoreWhites(uma.factor_id_array, config.weights.own, scores, whiteTotal, debuffScore, pinkStars, config);
+  scoreWhites(uma.factor_id_array, config.weights.own, 'own', scores, whiteTotal, debuffScore, pinkStars, whites, config);
 
   for (const p of directParents) {
     scoreBlues(p.factor_id_array, config.weights.parent, scores);
     scoreAptitudePinks(p.factor_id_array, config.weights.parent, scores);
-    scoreWhites(p.factor_id_array, config.weights.parent, scores, whiteTotal, debuffScore, pinkStars, config);
+    scoreWhites(p.factor_id_array, config.weights.parent, 'parent', scores, whiteTotal, debuffScore, pinkStars, whites, config);
   }
 
   return {
@@ -180,6 +201,7 @@ function scoreUma(uma: RawUma, config: ClassifierConfig): ScoredUma {
     scores,
     white_total: whiteTotal.value,
     debuff_score: debuffScore.value,
+    whites,
     assigned_icon: null,
   };
 }

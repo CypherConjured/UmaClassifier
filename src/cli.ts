@@ -38,25 +38,29 @@ const ICON_ORDER: Icon[] = [
 function parseArgs() {
   const args = process.argv.slice(2);
   let jsonPath = '';
+  let showWhites = false;
   const config: ClassifierConfig = { ...DEFAULT_CONFIG };
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
-      case '--keep':       config.keepPerCategory    = parseInt(args[++i]); break;
-      case '--min-score':  config.minCategoryScore   = parseFloat(args[++i]); break;
+      case '--keep':       config.keepPerCategory     = parseInt(args[++i]); break;
+      case '--min-score':  config.minCategoryScore    = parseFloat(args[++i]); break;
       case '--heart':      config.heartWhiteThreshold = parseFloat(args[++i]); break;
-      case '--ace':        config.aceScoreThreshold  = parseInt(args[++i]); break;
+      case '--ace':        config.aceScoreThreshold   = parseInt(args[++i]); break;
+      case '--keep-ace':   config.keepAce             = parseInt(args[++i]); break;
+      case '--keep-heart': config.keepHeart           = parseInt(args[++i]); break;
+      case '--whites':     showWhites = true; break;
       default:
         if (!args[i].startsWith('--')) jsonPath = args[i];
     }
   }
 
   if (!jsonPath) {
-    console.error('Usage: npm run cli -- <path-to-json> [--keep N] [--min-score N] [--heart N] [--ace N]');
+    console.error('Usage: npm run cli -- <path-to-json> [--keep N] [--min-score N] [--heart N] [--ace N] [--keep-ace N] [--keep-heart N] [--whites]');
     process.exit(1);
   }
 
-  return { jsonPath, config };
+  return { jsonPath, config, showWhites };
 }
 
 function topScores(uma: ScoredUma, n = 3): string {
@@ -67,7 +71,7 @@ function topScores(uma: ScoredUma, n = 3): string {
     .join('  ');
 }
 
-function printTable(results: ScoredUma[]) {
+function printTable(results: ScoredUma[], showWhites: boolean) {
   // Group by icon
   const groups = new Map<Icon, ScoredUma[]>();
   for (const icon of ICON_ORDER) groups.set(icon, []);
@@ -93,10 +97,30 @@ function printTable(results: ScoredUma[]) {
 
     for (const uma of umas.sort((a, b) => b.rank_score - a.rank_score)) {
       const lock = uma.is_locked ? '🔒' : '  ';
+      const name = lookupCharName(uma.card_id).padEnd(20).slice(0, 20);
       const whites = `whites:${uma.white_total.toFixed(1)}`;
       const scores = topScores(uma);
-      const uma_name = lookupCharName(uma.card_id).padEnd(20);
-      console.log(`  ${lock} rs:${uma.rank_score} ${uma_name}  ${whites}  [${scores}]`);
+      console.log(`  ${lock} ${name}  id:${uma.trained_chara_id}  rs:${uma.rank_score}  ${whites}  [${scores}]`);
+
+      if (showWhites && uma.whites.length > 0) {
+        const sorted = [...uma.whites].sort((a, b) => b.final_value - a.final_value);
+        for (const w of sorted) {
+          const src    = w.source === 'own' ? 'own' : 'par';
+          const stars  = ('★'.repeat(w.stars) + '☆'.repeat(3 - w.stars)).padEnd(3);
+          const name   = w.name.padEnd(28).slice(0, 28);
+          const tags   = [
+            ...w.dist_cats.map(c  => `[${c}]`),
+            ...w.style_cats.map(c => `[${c}]`),
+            ...w.surf_cats.map(c  => `[${c}]`),
+            ...(w.is_debuff ? ['[debuff]'] : []),
+          ].join(' ').padEnd(16);
+          const pm     = `pink:${w.pink_multiplier.toFixed(2)}x`;
+          const sb     = `bonus:${w.special_bonus.toFixed(1)}x`;
+          const val    = `→ ${w.final_value.toFixed(2)}`;
+          console.log(`       ${src}  ${stars}  ${name}  ${tags}  ${pm}  ${sb}  ${val}`);
+        }
+        console.log();
+      }
     }
     console.log();
   }
@@ -116,7 +140,7 @@ function printTable(results: ScoredUma[]) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-const { jsonPath, config } = parseArgs();
+const { jsonPath, config, showWhites } = parseArgs();
 
 let raw: unknown;
 try {
@@ -135,4 +159,4 @@ console.log(`Loaded ${raw.length} umas from ${jsonPath}`);
 console.log(`Config: keep=${config.keepPerCategory}, min-score=${config.minCategoryScore}, heart-threshold=${config.heartWhiteThreshold}, ace-threshold=${config.aceScoreThreshold}`);
 
 const results = classifyRoster(raw as any, config);
-printTable(results);
+printTable(results, showWhites);

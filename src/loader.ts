@@ -44,9 +44,9 @@ const BLUE_GROUP: Record<number, string> = {
 };
 
 const PINK_PREFIX: Record<number, string> = {
-  11: 'turf',   12: 'dirt',
-  21: 'front',  22: 'pace',   23: 'late',   24: 'end',
-  31: 'sprint', 32: 'mile',   33: 'mid',    34: 'long',
+  11: 'turf', 12: 'dirt',
+  21: 'front', 22: 'pace', 23: 'late', 24: 'end',
+  31: 'sprint', 32: 'mile', 33: 'mid', 34: 'long',
 };
 
 const STYLE_TAG: Record<string, string> = {
@@ -105,9 +105,9 @@ function buildFactorMap(factors: RawFactor[], skillByName: Map<string, RawSkill>
         name,
         stat_boost: type === 5 ? extractStatBoost(description) : null,
         style_cats: tags.filter(t => t in STYLE_TAG).map(t => STYLE_TAG[t]),
-        dist_cats:  tags.filter(t => t in DIST_TAG).map(t => DIST_TAG[t]),
-        surf_cats:  tags.filter(t => t in SURF_TAG).map(t => SURF_TAG[t]),
-        is_debuff:  skill?.skillCategory === 'Debuff',
+        dist_cats: tags.filter(t => t in DIST_TAG).map(t => DIST_TAG[t]),
+        surf_cats: tags.filter(t => t in SURF_TAG).map(t => SURF_TAG[t]),
+        is_debuff: skill?.skillCategory === 'Debuff',
       });
 
     } else if (type === 6) {
@@ -138,6 +138,7 @@ export function getFactorMap(): Map<number, FactorEntry> {
   const skillByName = new Map(skills.map(s => [s.skillName, s]));
 
   _factorMap = buildFactorMap(factors, skillByName);
+
   return _factorMap;
 }
 

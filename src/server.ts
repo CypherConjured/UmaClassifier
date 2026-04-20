@@ -15,7 +15,7 @@ import { DEFAULT_CONFIG } from './types.ts';
 const PORT = 3000;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const HTML = readFileSync(join(__dirname, 'ui.html'), 'utf-8');
+const HTML = readFileSync(join(__dirname, 'web-ui.html'), 'utf-8');
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
