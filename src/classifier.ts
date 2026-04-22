@@ -100,16 +100,62 @@ function scoreAptitudePinks(
   factor_ids: number[],
   weight: number,
   scores: CategoryScores
+  ): void {
+    for (const fid of factor_ids) {
+      const f = lookupFactor(fid);
+      if (!f || f.type !== 'pink' || !f.category) continue;
+      if (!APTITUDE_PINKS.has(f.category)) continue;
+      
+      // Distance pinks → speed score + own icon category
+      if (['sprint','mile','mid','long'].includes(f.category)) {
+        scores[f.category] = (scores[f.category] ?? 0) + f.stars * weight;
+        scores['speed'] = (scores['speed'] ?? 0) + f.stars * weight * 0.5;
+      }
+      // Surface pinks → power score + own icon category
+      else if (['turf','dirt'].includes(f.category)) {
+        scores[f.category] = (scores[f.category] ?? 0) + f.stars * weight;
+        scores['power'] = (scores['power'] ?? 0) + f.stars * weight * 0.5;
+      }
+  }
+}
+
+// ─── Second pass: score style pinks ────────────────────────────────────────
+
+function scoreStylePinks(
+  factor_ids: number[],
+  weight: number,
+  scores: CategoryScores
 ): void {
   for (const fid of factor_ids) {
     const f = lookupFactor(fid);
     if (!f || f.type !== 'pink' || !f.category) continue;
-    if (!APTITUDE_PINKS.has(f.category)) continue; // skip style pinks
-    scores[f.category] = (scores[f.category] ?? 0) + f.stars * weight;
+    if (!STYLE_PINKS.has(f.category)) continue;
+    scores['wit'] = (scores['wit'] ?? 0) + f.stars * weight * 0.5;
   }
 }
 
 // ─── Second pass: score whites ────────────────────────────────────────────────
+
+export function whiteToCategory(f: FactorEntry): string | null {
+  if (f.is_debuff) return 'debuff';
+
+  switch (f.skill_category) {
+    case 'Speed Boost':
+      return f.is_last_spurt ? 'guts' : 'speed';
+    case 'Acceleration':
+      return 'power';
+    case 'Recovery':
+      return 'stamina';
+    case 'Lane Effect':
+    case 'Vision':
+      return 'wit';
+    case 'Debuff':
+      return 'debuff';
+    default:
+      // Generic/unknown — don't route to any specific category
+      return null;
+  }
+}
 
 function scoreWhites(
   factor_ids: number[],
@@ -120,7 +166,8 @@ function scoreWhites(
   debuffScore: { value: number },
   pinkStars: Map<string, number>,
   whitesOut: ScoredWhite[],
-  config: ClassifierConfig
+  config: ClassifierConfig,
+  skillRelevance?: Map<number, number>
 ): void {
   for (const fid of factor_ids) {
     const f = lookupFactor(fid);
@@ -133,35 +180,34 @@ function scoreWhites(
 
     whiteTotal.value += final_value;
 
-    if (f.is_debuff) {
+    // Route to performance category based on skill_category
+    const cat = whiteToCategory(f);
+    if (cat === 'debuff') {
       debuffScore.value += f.stars * weight;
+    } else if (cat) {
+      scores[cat] = (scores[cat] ?? 0) + final_value * config.whiteSkillMultiplier;
     }
 
+    // Hybrid (type 5) stat boost still contributes to its stat category
     if (f.stat_boost) {
       scores[f.stat_boost] = (scores[f.stat_boost] ?? 0) +
         final_value * config.whiteStatBoostMultiplier;
     }
 
-    for (const cat of (f.dist_cats ?? [])) {
-      scores[cat] = (scores[cat] ?? 0) + final_value * config.whiteSkillMultiplier;
-    }
-    for (const cat of (f.surf_cats ?? [])) {
-      scores[cat] = (scores[cat] ?? 0) + final_value * config.whiteSkillMultiplier;
-    }
-
     whitesOut.push({
-      name: f.name,
       factor_id: fid,
+      name: f.name,
       stars: f.stars,
-      raw_value: raw,
+      raw_value: f.stars,
       pink_multiplier: pm,
       special_bonus: sb,
-      final_value,
+      final_value: raw * pm * sb / weight, // unweighted for display
       dist_cats: f.dist_cats ?? [],
       style_cats: f.style_cats ?? [],
       surf_cats: f.surf_cats ?? [],
       is_debuff: f.is_debuff ?? false,
       source,
+      relevance: skillRelevance?.get(fid) ?? undefined,
     });
   }
 }
@@ -190,12 +236,14 @@ function scoreUma(
   // Pass 2: score everything
   scoreBlues(uma.factor_id_array, config.weights.own, scores);
   scoreAptitudePinks(uma.factor_id_array, config.weights.own, scores);
-  scoreWhites(uma.factor_id_array, config.weights.own, 'own', scores, whiteTotal, debuffScore, pinkStars, whites, config);
+  scoreStylePinks(uma.factor_id_array, config.weights.own, scores);
+  scoreWhites(uma.factor_id_array, config.weights.own, 'own', scores, whiteTotal, debuffScore, pinkStars, whites, config, skillRelevance);
 
   for (const p of directParents) {
     scoreBlues(p.factor_id_array, config.weights.parent, scores);
     scoreAptitudePinks(p.factor_id_array, config.weights.parent, scores);
-    scoreWhites(p.factor_id_array, config.weights.parent, 'parent', scores, whiteTotal, debuffScore, pinkStars, whites, config);
+    scoreStylePinks(p.factor_id_array, config.weights.parent, scores);
+    scoreWhites(p.factor_id_array, config.weights.parent, 'parent', scores, whiteTotal, debuffScore, pinkStars, whites, config, skillRelevance);
   }
 
   // Race relevance score — sum of white final_values weighted by skill relevance

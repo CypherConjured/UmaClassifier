@@ -92,6 +92,7 @@ export interface ScoredWhite {
   surf_cats: string[];
   is_debuff: boolean;
   source: 'own' | 'parent';
+  relevance?: number;
 }
 
 export type CategoryScores = Record<string, number>;
