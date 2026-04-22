@@ -151,6 +151,7 @@ function scoreWhites(
 
     whitesOut.push({
       name: f.name,
+      factor_id: fid,
       stars: f.stars,
       raw_value: raw,
       pink_multiplier: pm,
@@ -167,7 +168,11 @@ function scoreWhites(
 
 // ─── Per-uma scoring ───────────────────────────────────────────────────────────
 
-function scoreUma(uma: RawUma, config: ClassifierConfig): ScoredUma {
+function scoreUma(
+  uma: RawUma,
+  config: ClassifierConfig,
+  skillRelevance?: Map<number, number>
+): ScoredUma {
   const scores: CategoryScores = {};
   const whiteTotal = { value: 0 };
   const debuffScore = { value: 0 };
@@ -193,6 +198,16 @@ function scoreUma(uma: RawUma, config: ClassifierConfig): ScoredUma {
     scoreWhites(p.factor_id_array, config.weights.parent, 'parent', scores, whiteTotal, debuffScore, pinkStars, whites, config);
   }
 
+  // Race relevance score — sum of white final_values weighted by skill relevance
+  let race_score = 0;
+  if (skillRelevance) {
+    for (const w of whites) {
+      // Look up relevance by iterating factor map to find matching fid
+      // We stored fid in whites via the factor_id — need to thread it through
+      race_score += w.final_value * (skillRelevance.get(w.factor_id) ?? 0.5);
+    }
+  }
+
   return {
     trained_chara_id: uma.trained_chara_id,
     card_id: uma.card_id,
@@ -201,6 +216,7 @@ function scoreUma(uma: RawUma, config: ClassifierConfig): ScoredUma {
     scores,
     white_total: whiteTotal.value,
     debuff_score: debuffScore.value,
+    race_score,
     whites,
     assigned_icon: null,
   };
@@ -216,34 +232,49 @@ function assignHearts(
 ): void {
   const rawByTrainedId = new Map(umas.map(u => [u.trained_chara_id, u]));
 
+  // Only consider umas above the threshold
   const candidates = scored
     .filter(u => !assigned.has(u.trained_chara_id) && u.white_total >= config.heartWhiteThreshold)
     .sort((a, b) => b.white_total - a.white_total);
 
-  const coveredSkills = new Set<string>();
+  const coveredSkills = new Map<string, number>(); // skill name -> best final_value seen
   let heartCount = 0;
 
   for (const uma of candidates) {
     if (heartCount >= config.keepHeart) break;
 
     const raw = rawByTrainedId.get(uma.trained_chara_id)!;
-    const umaSkills = new Set<string>();
 
-    for (const fid of raw.factor_id_array) {
-      const f = lookupFactor(fid);
-      if (f?.type === 'white') umaSkills.add(f.name);
+    // Collect own + parent whites with their values
+    const umaSkills = new Map<string, number>(); // name -> best final_value
+
+    for (const w of uma.whites) {
+      const existing = umaSkills.get(w.name) ?? 0;
+      if (w.final_value > existing) umaSkills.set(w.name, w.final_value);
     }
-    for (const p of raw.succession_chara_array) {
-      if (!isDirectParent(p.position_id)) continue;
-      for (const fid of p.factor_id_array) {
-        const f = lookupFactor(fid);
-        if (f?.type === 'white') umaSkills.add(f.name);
+
+    // Check if this uma adds any skill that is either:
+    // 1. Not yet covered at all, OR
+    // 2. Covered but this uma has a meaningfully better version (50% higher)
+    const UPGRADE_THRESHOLD = 1.5;
+    const MIN_SKILL_VALUE = 1.0; // ignore tiny contributions
+
+    let hasNew = false;
+    for (const [name, value] of umaSkills) {
+      if (value < MIN_SKILL_VALUE) continue;
+      const bestSeen = coveredSkills.get(name) ?? 0;
+      if (bestSeen === 0 || value > bestSeen * UPGRADE_THRESHOLD) {
+        hasNew = true;
+        break;
       }
     }
 
-    const hasNew = [...umaSkills].some(s => !coveredSkills.has(s));
     if (hasNew) {
-      for (const s of umaSkills) coveredSkills.add(s);
+      // Update covered skills with this uma's values
+      for (const [name, value] of umaSkills) {
+        const bestSeen = coveredSkills.get(name) ?? 0;
+        if (value > bestSeen) coveredSkills.set(name, value);
+      }
       assigned.set(uma.trained_chara_id, 'heart');
       heartCount++;
     }
@@ -252,10 +283,14 @@ function assignHearts(
 
 // ─── Main classifier ───────────────────────────────────────────────────────────
 
-export function classifyRoster(umas: RawUma[], config: ClassifierConfig): ScoredUma[] {
+export function classifyRoster(
+  umas: RawUma[],
+  config: ClassifierConfig,
+  skillRelevance?: Map<number, number>
+): ScoredUma[] {
   const { keepPerCategory, minCategoryScore, aceScoreThreshold } = config;
 
-  const scored = umas.map(uma => scoreUma(uma, config));
+  const scored = umas.map(uma => scoreUma(uma, config, skillRelevance));
   const assigned = new Map<number, Icon>();
 
   // Top-N per icon category

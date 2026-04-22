@@ -9,7 +9,7 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classifyRoster, } from './classifier.ts';
-import { lookupCharName } from './loader.ts';
+import { lookupCharName, buildSkillRelevanceMap, getRaceMap } from './loader.ts';
 import { DEFAULT_CONFIG } from './types.ts';
 
 const PORT = 3000;
@@ -36,16 +36,53 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
   if (req.method === 'POST' && req.url === '/classify') {
     try {
       const body = JSON.parse(await readBody(req));
-      const config = { ...DEFAULT_CONFIG, ...(body.config ?? {}), weights: { ...DEFAULT_CONFIG.weights, ...(body.config?.weights ?? {}) } };
-      const results = classifyRoster(body.data, config);
-      // Attach character names server-side
+      const config = {
+        ...DEFAULT_CONFIG,
+        ...(body.config ?? {}),
+        weights: { ...DEFAULT_CONFIG.weights, ...(body.config?.weights ?? {}) }
+      };
+      const skillRelevance = body.targetRaceId
+        ? buildSkillRelevanceMap(body.targetRaceId) ?? undefined
+        : undefined;
+      const targetRace = body.targetRaceId
+        ? getRaceMap().get(body.targetRaceId) ?? null
+        : null;
+      const results = classifyRoster(body.data, config, skillRelevance);
       const named = results.map(r => ({ ...r, name: lookupCharName(r.card_id) }));
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(named));
+      res.end(JSON.stringify({ results: named, targetRace }));
     } catch (e) {
       res.writeHead(400, { 'Content-Type': 'text/plain' });
       res.end(String(e));
     }
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/races') {
+    const races = Array.from(getRaceMap().values())
+      .filter(r => r.grade === 100)
+      .map(r => ({
+        raceId: r.raceId,
+        raceName: r.raceName,
+        distanceCategory: r.distanceCategory,
+        groundName: r.groundName,
+        trackName: r.trackName,
+        isCM: r.raceName.startsWith('Champions Meeting'),
+      }));
+    // Deduplicate by name, keeping first occurrence
+    const seen = new Set<string>();
+    const deduped = races.filter(r => {
+      if (seen.has(r.raceName) || r.raceName.match("^.*(Meeting.*Finals|Room.Match|Team.Race).*$")) return false;
+      seen.add(r.raceName);
+      return true;
+    });
+    // CM races first, then alphabetical
+    deduped.sort((a, b) => {
+      if (a.isCM !== b.isCM) return a.isCM ? -1 : 1;
+      return a.raceName.localeCompare(b.raceName);
+    });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(deduped));
     return;
   }
 

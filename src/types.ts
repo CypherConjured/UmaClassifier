@@ -81,6 +81,7 @@ export type Icon =
 // ─── Scored uma ───────────────────────────────────────────────────────────────
 export interface ScoredWhite {
   name: string;
+  factor_id: number;
   stars: number;
   raw_value: number;
   pink_multiplier: number;
@@ -103,6 +104,7 @@ export interface ScoredUma {
   scores: CategoryScores;   // score per icon category
   white_total: number;      // raw total white stars (own + weighted parents)
   debuff_score: number;
+  race_score: number;
   whites: ScoredWhite[];
   assigned_icon: Icon | null;
 }

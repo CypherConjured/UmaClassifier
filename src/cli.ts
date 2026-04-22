@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { classifyRoster } from './classifier.ts';
 import { DEFAULT_CONFIG } from './types.ts';
-import { lookupCharName } from './loader.ts';
+import { lookupCharName, getRaceMap } from './loader.ts';
 import type { ClassifierConfig, Icon, ScoredUma } from './types.ts';
 
 const ICON_DISPLAY: Record<Icon, string> = {
@@ -39,6 +39,7 @@ function parseArgs() {
   const args = process.argv.slice(2);
   let jsonPath = '';
   let showWhites = false;
+  let raceId = 0;
   const config: ClassifierConfig = { ...DEFAULT_CONFIG };
 
   for (let i = 0; i < args.length; i++) {
@@ -49,7 +50,8 @@ function parseArgs() {
       case '--ace':        config.aceScoreThreshold   = parseInt(args[++i]); break;
       case '--keep-ace':   config.keepAce             = parseInt(args[++i]); break;
       case '--keep-heart': config.keepHeart           = parseInt(args[++i]); break;
-      case '--whites':     showWhites = true; break;
+      case '--race':       raceId                     = parseInt(args[++i]); break;
+      case '--whites':     showWhites                 = true; break;
       default:
         if (!args[i].startsWith('--')) jsonPath = args[i];
     }
@@ -60,7 +62,7 @@ function parseArgs() {
     process.exit(1);
   }
 
-  return { jsonPath, config, showWhites };
+  return { jsonPath, config, showWhites, raceId };
 }
 
 function topScores(uma: ScoredUma, n = 3): string {
@@ -88,6 +90,39 @@ function printTable(results: ScoredUma[], showWhites: boolean) {
   console.log('  UMA CLASSIFIER RESULTS');
   console.log('═══════════════════════════════════════════════════════════\n');
 
+  // ── Race recommendations ───────────────────────────────────────────────────
+  const raceResults = [...results]
+    .filter(u => u.race_score > 0)
+    .sort((a, b) => b.race_score - a.race_score)
+    .slice(0, 7);
+
+  if (raceResults.length > 0) {
+    console.log('🤝 TOP RACE PARENTS');
+    console.log('─'.repeat(60));
+    for (const uma of raceResults) {
+      const lock = uma.is_locked ? '🔒' : '  ';
+      const name = lookupCharName(uma.card_id).padEnd(20).slice(0, 20);
+      const icon = uma.assigned_icon?.padEnd(8) ?? '        ';
+      console.log(`  ${lock} rs:${uma.rank_score}  ${name}  race:${uma.race_score.toFixed(1)}  whites:${uma.white_total.toFixed(1)}  [${icon}]`);
+
+      if (showWhites && uma.whites.length > 0) {
+        const sorted = [...uma.whites]
+          .filter(w => (w as any).relevance > 0)
+          .sort((a, b) => b.final_value - a.final_value);
+        for (const w of sorted) {
+          const src   = w.source === 'own' ? 'own' : 'par';
+          const stars = ('★'.repeat(w.stars) + '☆'.repeat(3 - w.stars)).padEnd(3);
+          const wname = w.name.padEnd(28).slice(0, 28);
+          const rel   = `rel:${((w as any).relevance ?? 0).toFixed(1)}`;
+          const val   = `→ ${w.final_value.toFixed(2)}`;
+          console.log(`       ${src}  ${stars}  ${wname}  ${rel}  ${val}`);
+        }
+        console.log();
+      }
+    }
+    console.log();
+  }
+
   for (const icon of ICON_ORDER) {
     const umas = groups.get(icon)!;
     if (umas.length === 0) continue;
@@ -100,7 +135,8 @@ function printTable(results: ScoredUma[], showWhites: boolean) {
       const name = lookupCharName(uma.card_id).padEnd(20).slice(0, 20);
       const whites = `whites:${uma.white_total.toFixed(1)}`;
       const scores = topScores(uma);
-      console.log(`  ${lock} ${name}  id:${uma.trained_chara_id}  rs:${uma.rank_score}  ${whites}  [${scores}]`);
+      const raceStr = uma.race_score > 0 ? `  race:${uma.race_score.toFixed(1)}` : '';
+      console.log(`  ${lock} rs:${uma.rank_score}  ${name}  whites:${uma.white_total.toFixed(1)}${raceStr}  [${scores}]`);
 
       if (showWhites && uma.whites.length > 0) {
         const sorted = [...uma.whites].sort((a, b) => b.final_value - a.final_value);
@@ -140,7 +176,7 @@ function printTable(results: ScoredUma[], showWhites: boolean) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-const { jsonPath, config, showWhites } = parseArgs();
+const { jsonPath, config, showWhites, raceId } = parseArgs();
 
 let raw: unknown;
 try {
@@ -158,5 +194,21 @@ if (!Array.isArray(raw)) {
 console.log(`Loaded ${raw.length} umas from ${jsonPath}`);
 console.log(`Config: keep=${config.keepPerCategory}, min-score=${config.minCategoryScore}, heart-threshold=${config.heartWhiteThreshold}, ace-threshold=${config.aceScoreThreshold}`);
 
-const results = classifyRoster(raw as any, config);
+import { buildSkillRelevanceMap } from './loader.ts';
+import type { RaceEntry } from './loader.ts';
+
+// After loading JSON, before classifyRoster:
+let skillRelevance: Map<number, number> | undefined;
+if (raceId !== null) {
+  skillRelevance = buildSkillRelevanceMap(raceId) ?? undefined;
+  if (!skillRelevance) {
+    console.error(`Unknown race ID: ${raceId}`);
+    process.exit(1);
+  }
+  const race = getRaceMap().get(raceId)!;
+  console.log(`Target race: ${race.raceName} — ${race.distanceCategory} ${race.groundName} @ ${race.trackName}`);
+}
+
+const results = classifyRoster(raw as any, config, skillRelevance);
+
 printTable(results, showWhites);

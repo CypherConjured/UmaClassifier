@@ -159,3 +159,121 @@ export function lookupFactor(factor_id: number): FactorEntry | null {
 export function lookupCharName(card_id: number): string {
   return getCharMap().get(card_id) ?? `card:${card_id}`;
 }
+
+export interface RaceEntry {
+  raceId: number;
+  raceName: string;
+  grade: number;
+  distanceCategory: string;
+  groundName: string;
+  trackName: string;
+  trackId: number;
+  ground: number;
+}
+
+interface RawRace {
+  raceId: number;
+  raceName: string;
+  grade: number;
+  distanceCategory: string;
+  groundName: string;
+  trackName: string;
+  trackId: number;
+  ground: number;
+}
+
+let _raceMap: Map<number, RaceEntry> | null = null;
+
+export function getRaceMap(): Map<number, RaceEntry> {
+  if (_raceMap) return _raceMap;
+  const raw: RawRace[] = JSON.parse(
+    readFileSync(join(ASSETS, 'TerumiRaceData.json'), 'utf-8')
+  );
+  _raceMap = new Map(raw.map(r => [r.raceId, r]));
+  return _raceMap;
+}
+
+export function buildSkillRelevanceMap(raceId: number): Map<number, number> | null {
+  const race = getRaceMap().get(raceId);
+  if (!race) return null;
+
+  const factorMap = getFactorMap();
+  const skillMap = new Map<number, number>();
+
+  // Distance type mapping
+  const distMap: Record<string, number> = {
+    'Short': 1, 'Mile': 2, 'Middle': 3, 'Long': 4,
+  };
+  const raceDistType = distMap[race.distanceCategory];
+
+  // Ground type: 1=Turf, 2=Dirt (matches game's ground field)
+  const raceGroundType = race.ground;
+
+  for (const [fid, entry] of factorMap) {
+    if (entry.type !== 'white') continue;
+
+    // Parse the skill's activation conditions from dist_cats/surf_cats
+    const distCatMap: Record<string, number> = {
+      'sprint': 1, 'mile': 2, 'mid': 3, 'long': 4,
+    };
+    const surfCatMap: Record<string, number> = {
+      'turf': 1, 'dirt': 2,
+    };
+
+    const skillDistTypes = (entry.dist_cats ?? []).map(c => distCatMap[c]).filter(Boolean);
+    const skillSurfTypes = (entry.surf_cats ?? []).map(c => surfCatMap[c]).filter(Boolean);
+    const hasTrackCondition = false; // track_id skills handled separately below
+
+    const isGeneric = skillDistTypes.length === 0 && skillSurfTypes.length === 0;
+
+    if (isGeneric) {
+      skillMap.set(fid, 0.5);
+      continue;
+    }
+
+    let score = 0;
+    let mismatches = 0;
+
+    if (skillDistTypes.length > 0) {
+      if (skillDistTypes.includes(raceDistType)) {
+        score += 1.5;
+      } else {
+        mismatches++;
+      }
+    }
+
+    if (skillSurfTypes.length > 0) {
+      if (skillSurfTypes.includes(raceGroundType)) {
+        score += 1.0;
+      } else {
+        mismatches++;
+      }
+    }
+
+    skillMap.set(fid, mismatches > 0 && score === 0 ? 0 : score);
+  }
+
+  // Handle track-specific skills separately via skill name matching
+  // (these have track_id in their activation condition)
+  // We load skill data to get track_id conditions
+  const skills: Array<{ skillId: number; skillName: string; activationCondition: string }> =
+    JSON.parse(readFileSync(join(ASSETS, 'TerumiSimpleSkillData.json'), 'utf-8'));
+
+  const trackSkills = skills.filter(s => s.activationCondition.includes('track_id'));
+  const skillByName = new Map(skills.map(s => [s.skillName, s]));
+
+  for (const [fid, entry] of factorMap) {
+    if (entry.type !== 'white') continue;
+    const skill = skillByName.get(entry.name);
+    if (!skill) continue;
+    if (!skill.activationCondition.includes('track_id')) continue;
+
+    const match = skill.activationCondition.match(/track_id==(\d+)/);
+    if (!match) continue;
+    const skillTrackId = parseInt(match[1]);
+
+    skillMap.set(fid, skillTrackId === race.trackId ? 2.0 : 0);
+  }
+
+  return skillMap;
+}

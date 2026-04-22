@@ -89,7 +89,7 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
             width: 100%;
-            margin-bottom: -0.5rem;
+            margin-bottom: 0rem;
         }
 
         button {
@@ -202,7 +202,7 @@
             min-width: 340px;
             max-width: 480px;
             max-height: 80vh;
-            overflow-y: auto;
+            overflow-y: visible;
             font-size: 0.8rem;
             pointer-events: none;
         }
@@ -324,6 +324,34 @@
             color: #888;
         }
 
+        /* Race Section */
+        .race-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px #0001;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+
+        .race-section .group-header {
+            background: linear-gradient(135deg, #e8934a, #d4823b);
+            color: white;
+        }
+
+        .race-score {
+            font-weight: 700;
+            color: #e8934a;
+        }
+
+        select {
+            padding: 0.4rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            background: white;
+            min-width: 200px;
+        }
+
         /* Summary */
         .summary {
             background: white;
@@ -421,6 +449,20 @@
         </div>
     </div>
 
+    <div class="section-label">Race target (optional)</div>
+    <div class="controls-row">
+      <div class="field">
+        <label>Target Race</label>
+        <select id="targetRace">
+          <option value="">— None —</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Top N parents</label>
+        <input type="number" id="raceTopN" value="7" min="1" max="50">
+      </div>
+    </div>
+
     <div id="results" class="results"></div>
 
     <script>
@@ -447,8 +489,33 @@
             'heart', 'clubs', 'ace', 'trash'
         ];
 
-        // Sort state per group: { col, dir }
         const sortState = {};
+        let _lastResults = null;
+        let _lastTargetRace = null;
+
+        // Load races on startup
+        async function loadRaces() {
+            const res = await fetch('/races');
+            if (!res.ok) return;
+            const races = await res.json();
+            const sel = document.getElementById('targetRace');
+            let lastCM = true;
+            for (const r of races) {
+                if (lastCM && !r.isCM && sel.options.length > 1) {
+                    const sep = document.createElement('option');
+                    sep.disabled = true;
+                    sep.textContent = '── G1 Races ──';
+                    sel.appendChild(sep);
+                }
+                lastCM = r.isCM;
+                const opt = document.createElement('option');
+                opt.value = r.raceId;
+                opt.textContent = `${r.raceName} (${r.distanceCategory} ${r.groundName} @ ${r.trackName})`;
+                sel.appendChild(opt);
+            }
+        }
+
+        loadRaces();
 
         async function run() {
             const file = document.getElementById('fileInput').files[0];
@@ -469,11 +536,16 @@
                 },
             };
 
+            const targetRaceId = document.getElementById('targetRace').value;
             const text = await file.text();
             const res = await fetch('/classify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data: JSON.parse(text), config }),
+                body: JSON.stringify({
+                    data: JSON.parse(text),
+                    config,
+                    targetRaceId: targetRaceId ? parseInt(targetRaceId) : null,
+                }),
             });
 
             const out = document.getElementById('results');
@@ -484,7 +556,8 @@
                 return;
             }
 
-            const results = await res.json();
+            const { results, targetRace } = await res.json();
+            _lastTargetRace = targetRace;
             renderResults(results);
         }
 
@@ -497,6 +570,7 @@
                     case 'rs': av = a.rank_score; bv = b.rank_score; break;
                     case 'white': av = a.white_total; bv = b.white_total; break;
                     case 'debuff': av = a.debuff_score; bv = b.debuff_score; break;
+                    case 'race': av = a.race_score ?? 0; bv = b.race_score ?? 0; break;
                     case 'cat': av = a._catScore; bv = b._catScore; break;
                     default: av = 0; bv = 0;
                 }
@@ -505,12 +579,55 @@
             });
         }
 
-        function renderGroup(icon, umas) {
+        function renderRaceSection(results, targetRace, topN) {
+            if (!targetRace) return '';
+
+            const candidates = [...results]
+                .filter(u => (u.race_score ?? 0) > 0)
+                .sort((a, b) => (b.race_score ?? 0) - (a.race_score ?? 0))
+                .slice(0, topN);
+
+            if (candidates.length === 0) return '';
+
+            const maxScore = Math.max(...candidates.map(u => u.race_score ?? 0), 1);
+
+            const tableRows = candidates.map(u => {
+                const barW = Math.round(((u.race_score ?? 0) / maxScore) * 80);
+                const lock = u.is_locked ? '🔒 ' : '';
+                const icon = ICON_LABEL[u.assigned_icon] ?? u.assigned_icon;
+                const whitesJson = JSON.stringify(u.whites ?? []).replace(/"/g, '&quot;');
+                return `<tr class="has-whites" data-whites="${whitesJson}">
+                    <td>${lock}${u.name}</td>
+                    <td style="color:#aaa">${u.trained_chara_id}</td>
+                    <td>${u.rank_score.toLocaleString()}</td>
+                    <td>${u.white_total.toFixed(1)}</td>
+                    <td class="race-score"><span class="score-bar" style="width:${barW}px"></span>${(u.race_score ?? 0).toFixed(1)}</td>
+                    <td style="color:#888;font-size:0.8rem">${icon}</td>
+                </tr>`;
+            }).join('');
+
+            return `<div class="race-section">
+                <div class="group-header">
+                    <span>🤝 Top parents for ${targetRace.raceName} — ${targetRace.distanceCategory} ${targetRace.groundName} @ ${targetRace.trackName}</span>
+                    <span style="font-weight:400;opacity:0.85">${candidates.length} umas</span>
+                </div>
+                <div class="group-body">
+                    <table>
+                        <tr>
+                            <th>Name</th><th>ID</th><th>Rank Score</th>
+                            <th>White ★</th><th>Race Score</th><th>Icon</th>
+                        </tr>
+                        ${tableRows}
+                    </table>
+                </div>
+            </div>`;
+        }
+
+        function renderGroup(icon, umas, showRaceScore) {
             if (umas.length === 0) return '';
 
             const state = sortState[icon] ?? { col: 'rs', dir: 'desc' };
             const rows = sortRows(umas, state.col, state.dir);
-
             const maxCat = Math.max(...umas.map(u => u._catScore), 1);
 
             const cols = [
@@ -519,6 +636,7 @@
                 { key: 'rs', label: 'Rank Score' },
                 { key: 'white', label: 'White ★' },
                 { key: 'debuff', label: 'Debuff ★' },
+                ...(showRaceScore ? [{ key: 'race', label: '🤝 Race' }] : []),
                 { key: 'cat', label: 'Cat. Score' },
             ];
 
@@ -532,28 +650,32 @@
                 const barW = Math.round((u._catScore / maxCat) * 80);
                 const lock = u.is_locked ? '🔒 ' : '';
                 const whitesJson = JSON.stringify(u.whites ?? []).replace(/"/g, '&quot;');
+                const raceCell = showRaceScore
+                    ? `<td class="race-score">${(u.race_score ?? 0).toFixed(1)}</td>`
+                    : '';
                 return `<tr class="has-whites" data-whites="${whitesJson}">
-          <td>${lock}${u.name}</td>
-          <td style="color:#aaa">${u.trained_chara_id}</td>
-          <td>${u.rank_score.toLocaleString()}</td>
-          <td>${u.white_total.toFixed(1)}</td>
-          <td>${u.debuff_score.toFixed(1)}</td>
-          <td><span class="score-bar" style="width:${barW}px"></span>${u._catScore.toFixed(1)}</td>
-        </tr>`;
+                    <td>${lock}${u.name}</td>
+                    <td style="color:#aaa">${u.trained_chara_id}</td>
+                    <td>${u.rank_score.toLocaleString()}</td>
+                    <td>${u.white_total.toFixed(1)}</td>
+                    <td>${u.debuff_score.toFixed(1)}</td>
+                    ${raceCell}
+                    <td><span class="score-bar" style="width:${barW}px"></span>${u._catScore.toFixed(1)}</td>
+                </tr>`;
             }).join('');
 
             return `<div class="group icon-${icon}" id="group-${icon}">
-         <div class="group-header">
-           <span>${ICON_LABEL[icon]}</span>
-           <span style="font-weight:400;opacity:0.7">${umas.length} umas</span>
-         </div>
-         <div class="group-body">
-           <table>
-             <tr>${headers}<th></th></tr>
-             ${tableRows}
-           </table>
-         </div>
-       </div>`;
+                <div class="group-header">
+                    <span>${ICON_LABEL[icon]}</span>
+                    <span style="font-weight:400;opacity:0.7">${umas.length} umas</span>
+                </div>
+                <div class="group-body">
+                    <table>
+                        <tr>${headers}<th></th></tr>
+                        ${tableRows}
+                    </table>
+                </div>
+            </div>`;
         }
 
         function toggleSort(icon, col) {
@@ -563,15 +685,13 @@
             } else {
                 sortState[icon] = { col, dir: 'desc' };
             }
-            // Re-render just that group
             const el = document.getElementById('group-' + icon);
             if (el && _lastResults) {
                 const groups = groupResults(_lastResults);
-                el.outerHTML = renderGroup(icon, groups[icon]);
+                const showRaceScore = !!_lastTargetRace;
+                el.outerHTML = renderGroup(icon, groups[icon], showRaceScore);
             }
         }
-
-        let _lastResults = null;
 
         function groupResults(results) {
             const groups = {};
@@ -587,6 +707,8 @@
             _lastResults = results;
             const groups = groupResults(results);
             const out = document.getElementById('results');
+            const showRaceScore = !!_lastTargetRace;
+            const topN = parseInt(document.getElementById('raceTopN').value) || 7;
 
             const total = results.length;
             const kept = results.filter(u => u.assigned_icon !== 'trash').length;
@@ -599,8 +721,11 @@
             html += `<span class="summary-total">Keeping ${kept} / ${total} &nbsp;|&nbsp; Transferring ${total - kept}</span>`;
             html += '</div>';
 
+            // Race section first if a race is selected
+            html += renderRaceSection(results, _lastTargetRace, topN);
+
             for (const icon of ICON_ORDER) {
-                html += renderGroup(icon, groups[icon]);
+                html += renderGroup(icon, groups[icon], showRaceScore);
             }
 
             out.innerHTML = html;
