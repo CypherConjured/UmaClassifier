@@ -138,11 +138,13 @@ function printTable(results: ScoredUma[], showWhites: boolean, showBreakdown: bo
       const icon = uma.assigned_icon?.padEnd(8) ?? '        ';
       console.log(`  ${lock} rs:${uma.rank_score}  ${name}  race:${uma.race_score.toFixed(1)}  whites:${uma.white_total.toFixed(1)}  [${icon}]`);
 
-      if (showWhites && uma.whites.length > 0) {
-        const sorted = [...uma.whites]
+      if (showWhites && uma.factors.length > 0) {
+        const sorted = [...uma.factors]
           .filter(w => (w as any).relevance > 0)
-          .sort((a, b) => b.final_value - a.final_value);
+          .sort((a, b) => {if(b.final_value == undefined || a.final_value == undefined) return 0; else return (b.final_value - a.final_value)});
         for (const w of sorted) {
+          if(w.final_value == undefined) throw 'error: no final_value in cli.ts:146';
+
           const src = w.source === 'own' ? 'own' : 'par';
           const stars = ('★'.repeat(w.stars) + '☆'.repeat(3 - w.stars)).padEnd(3);
           const wname = w.name.padEnd(28).slice(0, 28);
@@ -171,36 +173,58 @@ function printTable(results: ScoredUma[], showWhites: boolean, showBreakdown: bo
       const raceStr = uma.race_score > 0 ? `  race:${uma.race_score.toFixed(1)}` : '';
       console.log(`  ${lock} rs:${uma.rank_score}  ${name}  whites:${uma.white_total.toFixed(1)}${raceStr}  [${scores}]`);
 
-      if (showWhites && uma.whites.length > 0) {
-        const sorted = [...uma.whites].sort((a, b) => b.final_value - a.final_value);
+      if (showBreakdown) {
+        const blues = uma.factors.filter(f => f.type === 'blue');
+        const pinks = uma.factors.filter(f => f.type === 'pink');
+
+        if (blues.length > 0) {
+          console.log(`       ── Blues ──`);
+          for (const f of blues) {
+            console.log(`       ${f.source === 'own' ? 'own' : 'par'}  ${'★'.repeat(f.stars)}  ${f.name.padEnd(12)} → ${f.category}:${f.contribution.toFixed(1)}`);
+          }
+        }
+
+        if (pinks.length > 0) {
+          console.log(`       ── Pinks ──`);
+          for (const f of pinks) {
+            const secondary = f.secondary_category
+              ? `  ${f.secondary_category}:${f.secondary_contribution!.toFixed(1)}`
+              : '';
+            console.log(`       ${f.source === 'own' ? 'own' : 'par'}  ${'★'.repeat(f.stars)}  ${f.name.padEnd(12)} → ${f.category}:${f.contribution.toFixed(1)}${secondary}`);
+          }
+        }
+        console.log();
+      }
+
+      if (showWhites) {
+        const sorted = uma.factors
+          .filter(f => f.type === 'white')
+          .sort((a, b) => (b.final_value ?? 0) - (a.final_value ?? 0));
+
         for (const w of sorted) {
-          const src = w.source === 'own' ? 'own' : 'par';
+          const src   = w.source === 'own' ? 'own' : 'par';
           const stars = ('★'.repeat(w.stars) + '☆'.repeat(3 - w.stars)).padEnd(3);
-          const name = (w.name + ' ').padEnd(28,'-').slice(0, 28);
+          const name  = (w.name + ' ').padEnd(28, '-').slice(0, 28);
 
-          // Performance category this white routed to
-          const f = lookupFactor(w.factor_id);
-
-          // Skill category short tag
-          const catTag = f?.skill_category ? ({
-            'Speed Boost': f.is_last_spurt ? '[End]' : '[Spd]',
+          const catTag = w.skill_category ? ({
+            'Speed Boost':  w.is_last_spurt ? '[End]' : '[Spd]',
             'Acceleration': '[Acl]',
-            'Recovery': '[HP] ',
-            'Lane Effect': '[Nav]',
-            'Vision': '[Nav]',
-            'Debuff': '[Dbf]',
-            'Unique': '[Unq]',
-          }[f.skill_category] ?? '-----') : '-----';
+            'Recovery':     '[HP] ',
+            'Lane Effect':  '[Nav]',
+            'Vision':       '[Nav]',
+            'Debuff':       '[Dbf]',
+            'Unique':       '[Unq]',
+          }[w.skill_category] ?? '-----') : '-----';
 
           const tags = [
-            ...w.dist_cats.map(c => `[${c}]`),
-            ...w.style_cats.map(c => `[${c}]`),
-            ...w.surf_cats.map(c => `[${c}]`),
-          ].join('').padStart(15,'-');
+            ...(w.dist_cats  ?? []).map(c => `[${c}]`),
+            ...(w.style_cats ?? []).map(c => `[${c}]`),
+            ...(w.surf_cats  ?? []).map(c => `[${c}]`),
+          ].join('').padStart(15, '-');
 
-          const pm = w.pink_multiplier > 1 ? `pink:${w.pink_multiplier.toFixed(2)}x` : '----------';
-          const sb = w.special_bonus > 1 ? `bonus:${w.special_bonus.toFixed(1)}x` : '----------';
-          const val = `→ ${w.final_value.toFixed(2)}`;
+          const pm  = (w.pink_multiplier ?? 1) > 1 ? `pink:${w.pink_multiplier!.toFixed(2)}x` : '----------';
+          const sb  = (w.special_bonus   ?? 1) > 1 ? `bonus:${w.special_bonus!.toFixed(1)}x`  : '----------';
+          const val = `→ ${(w.final_value ?? 0).toFixed(2)}`;
           console.log(`       ${src} ${catTag} ${stars} ${name} ${tags} ${pm} ${sb} ${val}`);
         }
         console.log();

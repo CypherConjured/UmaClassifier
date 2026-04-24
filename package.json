@@ -1,0 +1,15 @@
+{
+  "name": "uma-classifier",
+  "version": "0.1.0",
+  "description": "Umamusume roster classifier — scores and assigns favorite icons based on sparks",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "cli": "node --strip-types src/cli.ts",
+    "serve": "node --strip-types src/server.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^22.0.0"
+  }
+}

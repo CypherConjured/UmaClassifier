@@ -79,19 +79,27 @@ export type Icon =
   | 'trash';    // 🗑️ transfer candidate
 
 // ─── Scored uma ───────────────────────────────────────────────────────────────
-export interface ScoredWhite {
-  name: string;
+export interface FactorContribution {
   factor_id: number;
+  name: string;
   stars: number;
-  raw_value: number;
-  pink_multiplier: number;
-  special_bonus: number;
-  final_value: number;
-  dist_cats: string[];
-  style_cats: string[];
-  surf_cats: string[];
-  is_debuff: boolean;
+  type: 'blue' | 'pink' | 'white';
   source: 'own' | 'parent';
+  category: string;
+  secondary_category?: string;
+  contribution: number;
+  secondary_contribution?: number;
+
+  // White-specific
+  pink_multiplier?: number;
+  special_bonus?: number;
+  final_value?: number;
+  dist_cats?: string[];
+  style_cats?: string[];
+  surf_cats?: string[];
+  is_debuff?: boolean;
+  skill_category?: string;
+  is_last_spurt?: boolean;
   relevance?: number;
 }
 
@@ -106,7 +114,7 @@ export interface ScoredUma {
   white_total: number;      // raw total white stars (own + weighted parents)
   debuff_score: number;
   race_score: number;
-  whites: ScoredWhite[];
+  factors: FactorContribution[];
   assigned_icon: Icon | null;
 }
 

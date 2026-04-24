@@ -3,7 +3,7 @@ import type { FactorEntry } from './loader.ts';
 import type {
   RawUma,
   ScoredUma,
-  ScoredWhite,
+  FactorContribution,
   CategoryScores,
   Icon,
   ClassifierConfig,
@@ -11,12 +11,12 @@ import type {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const GROUNDWORK_ID_BASE = 2016001;
+const GROUNDWORK_ID_BASE     = 2016001;
 const TAIL_HELD_HIGH_ID_BASE = 2016101;
 
-const APTITUDE_PINKS = new Set(['turf', 'dirt', 'sprint', 'mile', 'mid', 'long']);
-const STYLE_PINKS = new Set(['front', 'pace', 'late', 'end']);
-const ALL_PINKS = new Set([...APTITUDE_PINKS, ...STYLE_PINKS]);
+const APTITUDE_PINKS = new Set(['turf','dirt','sprint','mile','mid','long']);
+const STYLE_PINKS    = new Set(['front','pace','late','end']);
+const ALL_PINKS      = new Set([...APTITUDE_PINKS, ...STYLE_PINKS]);
 
 const ICON_CATEGORIES: Icon[] = [
   'speed', 'stamina', 'power', 'guts', 'wit',
@@ -37,9 +37,7 @@ function specialBonus(
   if (base === GROUNDWORK_ID_BASE) {
     return (pinkStars.get('front') ?? 0) > 0 ? 2.0 : 1.5;
   }
-  if (base === TAIL_HELD_HIGH_ID_BASE) {
-    return 1.5;
-  }
+  if (base === TAIL_HELD_HIGH_ID_BASE) return 1.5;
   return 1.0;
 }
 
@@ -49,24 +47,28 @@ function pinkMultiplier(
 ): number {
   const cats = [
     ...(f.style_cats ?? []),
-    ...(f.dist_cats ?? []),
-    ...(f.surf_cats ?? []),
+    ...(f.dist_cats  ?? []),
+    ...(f.surf_cats  ?? []),
   ];
-  if (cats.length === 0) return 1.0; // generic — no penalty or bonus
+  if (cats.length === 0) return 1.0;
   const matching = cats.reduce((sum, cat) => sum + (pinkStars.get(cat) ?? 0), 0);
-  return 1 + matching / 6; // range: 1.0 (no pinks) to 2.5 (9 matching stars)
+  return 1 + matching / 6;
 }
 
-function whiteValue(
-  f: FactorEntry,
-  factor_id: number,
-  weight: number,
-  pinkStars: Map<string, number>
-): number {
-  return f.stars * weight * pinkMultiplier(f, pinkStars) * specialBonus(factor_id, pinkStars);
+export function whiteToCategory(f: FactorEntry): string | null {
+  if (f.is_debuff) return 'debuff';
+  switch (f.skill_category) {
+    case 'Speed Boost':  return f.is_last_spurt ? 'guts' : 'speed';
+    case 'Acceleration': return 'power';
+    case 'Recovery':     return 'stamina';
+    case 'Lane Effect':
+    case 'Vision':       return 'wit';
+    case 'Debuff':       return 'debuff';
+    default:             return null;
+  }
 }
 
-// ─── First pass: collect pink stars ────────────────────────────────────────────
+// ─── Pink star collection ──────────────────────────────────────────────────────
 
 function collectPinks(
   factor_ids: number[],
@@ -80,84 +82,9 @@ function collectPinks(
   }
 }
 
-// ─── Second pass: score blues ──────────────────────────────────────────────────
+// ─── Factor scoring ────────────────────────────────────────────────────────────
 
-function scoreBlues(
-  factor_ids: number[],
-  weight: number,
-  scores: CategoryScores
-): void {
-  for (const fid of factor_ids) {
-    const f = lookupFactor(fid);
-    if (!f || f.type !== 'blue' || !f.category) continue;
-    scores[f.category] = (scores[f.category] ?? 0) + f.stars * weight;
-  }
-}
-
-// ─── Second pass: score aptitude pinks ────────────────────────────────────────
-
-function scoreAptitudePinks(
-  factor_ids: number[],
-  weight: number,
-  scores: CategoryScores
-  ): void {
-    for (const fid of factor_ids) {
-      const f = lookupFactor(fid);
-      if (!f || f.type !== 'pink' || !f.category) continue;
-      if (!APTITUDE_PINKS.has(f.category)) continue;
-      
-      // Distance pinks → speed score + own icon category
-      if (['sprint','mile','mid','long'].includes(f.category)) {
-        scores[f.category] = (scores[f.category] ?? 0) + f.stars * weight;
-        scores['speed'] = (scores['speed'] ?? 0) + f.stars * weight * 0.5;
-      }
-      // Surface pinks → power score + own icon category
-      else if (['turf','dirt'].includes(f.category)) {
-        scores[f.category] = (scores[f.category] ?? 0) + f.stars * weight;
-        scores['power'] = (scores['power'] ?? 0) + f.stars * weight * 0.5;
-      }
-  }
-}
-
-// ─── Second pass: score style pinks ────────────────────────────────────────
-
-function scoreStylePinks(
-  factor_ids: number[],
-  weight: number,
-  scores: CategoryScores
-): void {
-  for (const fid of factor_ids) {
-    const f = lookupFactor(fid);
-    if (!f || f.type !== 'pink' || !f.category) continue;
-    if (!STYLE_PINKS.has(f.category)) continue;
-    scores['wit'] = (scores['wit'] ?? 0) + f.stars * weight * 0.5;
-  }
-}
-
-// ─── Second pass: score whites ────────────────────────────────────────────────
-
-export function whiteToCategory(f: FactorEntry): string | null {
-  if (f.is_debuff) return 'debuff';
-
-  switch (f.skill_category) {
-    case 'Speed Boost':
-      return f.is_last_spurt ? 'guts' : 'speed';
-    case 'Acceleration':
-      return 'power';
-    case 'Recovery':
-      return 'stamina';
-    case 'Lane Effect':
-    case 'Vision':
-      return 'wit';
-    case 'Debuff':
-      return 'debuff';
-    default:
-      // Generic/unknown — don't route to any specific category
-      return null;
-  }
-}
-
-function scoreWhites(
+function scoreFactors(
   factor_ids: number[],
   weight: number,
   source: 'own' | 'parent',
@@ -165,50 +92,117 @@ function scoreWhites(
   whiteTotal: { value: number },
   debuffScore: { value: number },
   pinkStars: Map<string, number>,
-  whitesOut: ScoredWhite[],
+  factors: FactorContribution[],
   config: ClassifierConfig,
   skillRelevance?: Map<number, number>
 ): void {
   for (const fid of factor_ids) {
     const f = lookupFactor(fid);
-    if (!f || f.type !== 'white') continue;
+    if (!f) continue;
 
-    const pm = pinkMultiplier(f, pinkStars);
-    const sb = specialBonus(fid, pinkStars);
-    const raw = f.stars * weight;
-    const final_value = raw * pm * sb;
+    if (f.type === 'blue' && f.category) {
+      const contribution = f.stars * weight;
+      scores[f.category] = (scores[f.category] ?? 0) + contribution;
+      factors.push({
+        factor_id: fid,
+        name: f.name,
+        stars: f.stars,
+        type: 'blue',
+        source,
+        category: f.category,
+        contribution,
+      });
 
-    whiteTotal.value += final_value;
+    } else if (f.type === 'pink' && f.category) {
+      if (APTITUDE_PINKS.has(f.category)) {
+        const contribution = f.stars * weight;
+        scores[f.category] = (scores[f.category] ?? 0) + contribution;
 
-    // Route to performance category based on skill_category
-    const cat = whiteToCategory(f);
-    if (cat === 'debuff') {
-      debuffScore.value += f.stars * weight;
-    } else if (cat) {
-      scores[cat] = (scores[cat] ?? 0) + final_value * config.whiteSkillMultiplier;
+        // Secondary category
+        let secondary_category: string | undefined;
+        let secondary_contribution: number | undefined;
+
+        if (['sprint','mile','mid','long'].includes(f.category)) {
+          secondary_category = 'speed';
+          secondary_contribution = f.stars * weight * 0.5;
+          scores['speed'] = (scores['speed'] ?? 0) + secondary_contribution;
+        } else if (['turf','dirt'].includes(f.category)) {
+          secondary_category = 'power';
+          secondary_contribution = f.stars * weight * 0.5;
+          scores['power'] = (scores['power'] ?? 0) + secondary_contribution;
+        }
+
+        factors.push({
+          factor_id: fid,
+          name: f.name,
+          stars: f.stars,
+          type: 'pink',
+          source,
+          category: f.category,
+          contribution,
+          secondary_category,
+          secondary_contribution,
+        });
+
+      } else if (STYLE_PINKS.has(f.category)) {
+        const secondary_contribution = f.stars * weight * 0.5;
+        scores['wit'] = (scores['wit'] ?? 0) + secondary_contribution;
+        factors.push({
+          factor_id: fid,
+          name: f.name,
+          stars: f.stars,
+          type: 'pink',
+          source,
+          category: f.category,
+          contribution: 0,
+          secondary_category: 'wit',
+          secondary_contribution,
+        });
+      }
+
+    } else if (f.type === 'white') {
+      const pm = pinkMultiplier(f, pinkStars);
+      const sb = specialBonus(fid, pinkStars);
+      const weighted = f.stars * weight * pm * sb;
+      const display  = f.stars * pm * sb; // unweighted for display
+
+      whiteTotal.value += weighted;
+
+      const cat = whiteToCategory(f);
+      let contribution = 0;
+
+      if (cat === 'debuff') {
+        debuffScore.value += f.stars * weight;
+      } else if (cat) {
+        contribution = weighted * config.whiteSkillMultiplier;
+        scores[cat] = (scores[cat] ?? 0) + contribution;
+      }
+
+      if (f.stat_boost) {
+        const statContrib = weighted * config.whiteStatBoostMultiplier;
+        scores[f.stat_boost] = (scores[f.stat_boost] ?? 0) + statContrib;
+      }
+
+      factors.push({
+        factor_id: fid,
+        name: f.name,
+        stars: f.stars,
+        type: 'white',
+        source,
+        category: cat ?? 'none',
+        contribution,
+        pink_multiplier: pm,
+        special_bonus: sb,
+        final_value: display,
+        dist_cats: f.dist_cats ?? [],
+        style_cats: f.style_cats ?? [],
+        surf_cats: f.surf_cats ?? [],
+        is_debuff: f.is_debuff ?? false,
+        skill_category: f.skill_category,
+        is_last_spurt: f.is_last_spurt ?? false,
+        relevance: skillRelevance?.get(fid),
+      });
     }
-
-    // Hybrid (type 5) stat boost still contributes to its stat category
-    if (f.stat_boost) {
-      scores[f.stat_boost] = (scores[f.stat_boost] ?? 0) +
-        final_value * config.whiteStatBoostMultiplier;
-    }
-
-    whitesOut.push({
-      factor_id: fid,
-      name: f.name,
-      stars: f.stars,
-      raw_value: f.stars,
-      pink_multiplier: pm,
-      special_bonus: sb,
-      final_value: raw * pm * sb / weight, // unweighted for display
-      dist_cats: f.dist_cats ?? [],
-      style_cats: f.style_cats ?? [],
-      surf_cats: f.surf_cats ?? [],
-      is_debuff: f.is_debuff ?? false,
-      source,
-      relevance: skillRelevance?.get(fid) ?? undefined,
-    });
   }
 }
 
@@ -220,40 +214,26 @@ function scoreUma(
   skillRelevance?: Map<number, number>
 ): ScoredUma {
   const scores: CategoryScores = {};
-  const whiteTotal = { value: 0 };
+  const whiteTotal  = { value: 0 };
   const debuffScore = { value: 0 };
-  const pinkStars = new Map<string, number>();
-  const whites: ScoredWhite[] = [];
+  const pinkStars   = new Map<string, number>();
+  const factors: FactorContribution[] = [];
 
   const directParents = uma.succession_chara_array.filter(
     p => isDirectParent(p.position_id)
   );
 
-  // Pass 1: collect all pink stars for multiplier calculation
+  // Pass 1: collect pink stars for multiplier calculation
   collectPinks(uma.factor_id_array, pinkStars);
   for (const p of directParents) collectPinks(p.factor_id_array, pinkStars);
 
   // Pass 2: score everything
-  scoreBlues(uma.factor_id_array, config.weights.own, scores);
-  scoreAptitudePinks(uma.factor_id_array, config.weights.own, scores);
-  scoreStylePinks(uma.factor_id_array, config.weights.own, scores);
-  scoreWhites(uma.factor_id_array, config.weights.own, 'own', scores, whiteTotal, debuffScore, pinkStars, whites, config, skillRelevance);
+  scoreFactors(uma.factor_id_array, config.weights.own, 'own',
+    scores, whiteTotal, debuffScore, pinkStars, factors, config, skillRelevance);
 
   for (const p of directParents) {
-    scoreBlues(p.factor_id_array, config.weights.parent, scores);
-    scoreAptitudePinks(p.factor_id_array, config.weights.parent, scores);
-    scoreStylePinks(p.factor_id_array, config.weights.parent, scores);
-    scoreWhites(p.factor_id_array, config.weights.parent, 'parent', scores, whiteTotal, debuffScore, pinkStars, whites, config, skillRelevance);
-  }
-
-  // Race relevance score — sum of white final_values weighted by skill relevance
-  let race_score = 0;
-  if (skillRelevance) {
-    for (const w of whites) {
-      // Look up relevance by iterating factor map to find matching fid
-      // We stored fid in whites via the factor_id — need to thread it through
-      race_score += w.final_value * (skillRelevance.get(w.factor_id) ?? 0.5);
-    }
+    scoreFactors(p.factor_id_array, config.weights.parent, 'parent',
+      scores, whiteTotal, debuffScore, pinkStars, factors, config, skillRelevance);
   }
 
   return {
@@ -264,8 +244,8 @@ function scoreUma(
     scores,
     white_total: whiteTotal.value,
     debuff_score: debuffScore.value,
-    race_score,
-    whites,
+    race_score: 0,
+    factors,
     assigned_icon: null,
   };
 }
@@ -274,38 +254,28 @@ function scoreUma(
 
 function assignHearts(
   scored: ScoredUma[],
-  umas: RawUma[],
   assigned: Map<number, Icon>,
   config: ClassifierConfig
 ): void {
-  const rawByTrainedId = new Map(umas.map(u => [u.trained_chara_id, u]));
-
-  // Only consider umas above the threshold
   const candidates = scored
     .filter(u => !assigned.has(u.trained_chara_id) && u.white_total >= config.heartWhiteThreshold)
     .sort((a, b) => b.white_total - a.white_total);
 
-  const coveredSkills = new Map<string, number>(); // skill name -> best final_value seen
+  const coveredSkills = new Map<string, number>();
   let heartCount = 0;
+  const UPGRADE_THRESHOLD = 1.5;
+  const MIN_SKILL_VALUE = 1.0;
 
   for (const uma of candidates) {
     if (heartCount >= config.keepHeart) break;
 
-    const raw = rawByTrainedId.get(uma.trained_chara_id)!;
-
-    // Collect own + parent whites with their values
-    const umaSkills = new Map<string, number>(); // name -> best final_value
-
-    for (const w of uma.whites) {
-      const existing = umaSkills.get(w.name) ?? 0;
-      if (w.final_value > existing) umaSkills.set(w.name, w.final_value);
+    const umaSkills = new Map<string, number>();
+    for (const f of uma.factors) {
+      if (f.type !== 'white') continue;
+      const val = f.final_value ?? 0;
+      const existing = umaSkills.get(f.name) ?? 0;
+      if (val > existing) umaSkills.set(f.name, val);
     }
-
-    // Check if this uma adds any skill that is either:
-    // 1. Not yet covered at all, OR
-    // 2. Covered but this uma has a meaningfully better version (50% higher)
-    const UPGRADE_THRESHOLD = 1.5;
-    const MIN_SKILL_VALUE = 1.0; // ignore tiny contributions
 
     let hasNew = false;
     for (const [name, value] of umaSkills) {
@@ -318,7 +288,6 @@ function assignHearts(
     }
 
     if (hasNew) {
-      // Update covered skills with this uma's values
       for (const [name, value] of umaSkills) {
         const bestSeen = coveredSkills.get(name) ?? 0;
         if (value > bestSeen) coveredSkills.set(name, value);
@@ -339,6 +308,16 @@ export function classifyRoster(
   const { keepPerCategory, minCategoryScore, aceScoreThreshold } = config;
 
   const scored = umas.map(uma => scoreUma(uma, config, skillRelevance));
+
+  // Compute race scores
+  if (skillRelevance) {
+    for (const uma of scored) {
+      uma.race_score = uma.factors
+        .filter(f => f.type === 'white')
+        .reduce((sum, f) => sum + (f.final_value ?? 0) * (f.relevance ?? 0), 0);
+    }
+  }
+
   const assigned = new Map<number, Icon>();
 
   // Top-N per icon category
@@ -358,27 +337,21 @@ export function classifyRoster(
   }
 
   // Hearts
-  assignHearts(scored, umas, assigned, config);
+  assignHearts(scored, assigned, config);
 
   // Ace
   const aceCandidates = scored
     .filter(u => !assigned.has(u.trained_chara_id) && u.rank_score >= aceScoreThreshold)
     .sort((a, b) => b.rank_score - a.rank_score)
     .slice(0, config.keepAce);
-
-  for (const uma of aceCandidates) {
-    assigned.set(uma.trained_chara_id, 'ace');
-  }
+  for (const uma of aceCandidates) assigned.set(uma.trained_chara_id, 'ace');
 
   // Debuff
   const debuffCandidates = scored
     .filter(u => !assigned.has(u.trained_chara_id) && u.debuff_score > 0)
     .sort((a, b) => b.debuff_score - a.debuff_score)
     .slice(0, config.keepPerCategory);
-
-  for (const uma of debuffCandidates) {
-    assigned.set(uma.trained_chara_id, 'clubs');
-  }
+  for (const uma of debuffCandidates) assigned.set(uma.trained_chara_id, 'clubs');
 
   // Trash
   for (const uma of scored) {
