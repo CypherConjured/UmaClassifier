@@ -6,12 +6,27 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { classifyRoster, whiteToCategory } from './classifier.ts';
-import { DEFAULT_CONFIG } from './types.ts';
-import { lookupCharName, buildSkillRelevanceMap, getRaceMap, lookupFactor } from './loader.ts';
+import { classifyRoster } from './classifier.ts';
+import { buildSkillRelevanceMap, getRaceMap, lookupCharName } from './loader.ts';
 import type { ClassifierConfig, Icon, ScoredUma } from './types.ts';
+import { DEFAULT_CONFIG } from './types.ts';
+
+const C = {
+  reset:   '\x1b[0m',
+  bold:    '\x1b[1m',
+  blue:    '\x1b[34m',
+  cyan:    '\x1b[36m',
+  magenta: '\x1b[35m',
+  green:   '\x1b[32m',
+  yellow:  '\x1b[33m',
+  red:     '\x1b[31m',
+  gray:    '\x1b[90m',
+  white:   '\x1b[97m',
+};
+const c = (color: string, text: string) => `${color}${text}${C.reset}`;
 
 const ICON_DISPLAY: Record<Icon, string> = {
+  skip: 'Unlisted (skip)',
   speed: '🥤 Speed',
   stamina: '🍚 Stamina',
   power: '🍫 Power',
@@ -26,13 +41,13 @@ const ICON_DISPLAY: Record<Icon, string> = {
   heart: '♥  Heart (skill)',
   clubs: '♣  Debuffer',
   ace: '♠  Ace',
-  trash: '🗑️  Trash',
+  trash: '🗑️  Transfer',
 };
 
 const ICON_ORDER: Icon[] = [
   'speed', 'stamina', 'power', 'guts', 'wit',
   'turf', 'dirt', 'sprint', 'mile', 'mid', 'long',
-  'heart', 'clubs', 'ace', 'trash',
+  'heart', 'clubs', 'ace', 'trash','skip'
 ];
 
 function parseSingleArg(args: string[], i: number, type: 'int' | 'float', usage: string): number {
@@ -51,51 +66,81 @@ function parseArgs() {
   let showWhites = false;
   let showBreakdown = false;
   let raceId: number | null = null;
+  let rankFilter: number | null = null;
   const config: ClassifierConfig = { ...DEFAULT_CONFIG };
 
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
-      case '--keep':       config.keepPerCategory     = parseSingleArg(args, i++, 'int',   '--keep {N}          Keep top N umas per category (default: 7)'); break;
-      case '--min-score':  config.minCategoryScore    = parseSingleArg(args, i++, 'float', '--min-score {N}     Minimum score to qualify for a category (default: 2)'); break;
-      case '--heart':      config.heartWhiteThreshold = parseSingleArg(args, i++, 'float', '--heart {N}         Minimum white total for heart consideration (default: 6)'); break;
-      case '--ace':        config.aceScoreThreshold   = parseSingleArg(args, i++, 'int',   '--ace {N}           Minimum rank score for ace fallback (default: 11000)'); break;
-      case '--keep-ace':   config.keepAce             = parseSingleArg(args, i++, 'int',   '--keep-ace {N}      Max umas to assign ace icon (default: 20)'); break;
-      case '--keep-heart': config.keepHeart           = parseSingleArg(args, i++, 'int',   '--keep-heart {N}    Max umas to assign heart icon (default: 20)'); break;
+      case '--help':       jsonPath = ''; break;
+      case '--keep':       config.keepPerCategory     = parseSingleArg(args, i++, 'int',   '--keep {N}          Keep top N umas per category (default: ' + DEFAULT_CONFIG.keepPerCategory + ')'); break;
+      case '--min-score':  config.minCategoryScore    = parseSingleArg(args, i++, 'float', '--min-score {N}     Minimum score to qualify for a category (default: ' + DEFAULT_CONFIG.minCategoryScore + ')'); break;
+      case '--heart':      config.heartWhiteThreshold = parseSingleArg(args, i++, 'float', '--heart {N}         Minimum white total for heart consideration (default: ' + DEFAULT_CONFIG.heartWhiteThreshold + ')'); break;
+      case '--ace':        config.aceScoreThreshold   = parseSingleArg(args, i++, 'int',   '--ace {N}           Minimum rank score for ace fallback (default: ' + DEFAULT_CONFIG.aceScoreThreshold + ')'); break;
+      case '--keep-ace':   config.keepAce             = parseSingleArg(args, i++, 'int',   '--keep-ace {N}      Max umas to assign ace icon (default: ' + DEFAULT_CONFIG.keepAce + ')'); break;
+      case '--keep-heart': config.keepHeart           = parseSingleArg(args, i++, 'int',   '--keep-heart {N}    Max umas to assign heart icon (default: ' + DEFAULT_CONFIG.keepHeart + ')'); break;
+      case '--trash':  config.numTrash                = parseSingleArg(args, i++, 'int',   '--trash {N}     Number of umas to consider for transfer. (default: ' + DEFAULT_CONFIG.numTrash + ')'); break;
       case '--race':       raceId                     = parseSingleArg(args, i++, 'int',   '--race {ID}         Target race ID for parent recommendations (example: --race 6019)'); break;
+      case '--rank':       rankFilter                 = parseSingleArg(args, i++, 'int',   '--rank #            Filter output to umas with this rank score'); break;
       case '--whites':     showWhites                 = true; break;
       case '--breakdown':  showBreakdown              = true; break;
       default:
         if (!args[i].startsWith('--')) jsonPath = args[i];
+      }
     }
-  }
-
-  if (!jsonPath) {
-    console.error([
-      'Usage: npm run cli -- <path-to-json> [options]',
-      '',
-      'Options:',
-      '  --keep N          Keep top N umas per category        (default: 7)',
-      '  --min-score N     Minimum score for category entry    (default: 2)',
-      '  --heart N         Minimum white total for hearts      (default: 6)',
-      '  --ace N           Minimum rank score for ace          (default: 11000)',
-      '  --keep-ace N      Max umas assigned ace icon          (default: 20)',
-      '  --keep-heart N    Max umas assigned heart icon        (default: 20)',
-      '  --race ID         Target race ID for recommendations  (example: 6019)',
-      '  --whites          Show white spark breakdown per uma',
+    
+    if (!jsonPath) {
+      console.error([
+        'Usage: npm run cli -- <path-to-json> [options]',
+        '',
+        'Options:',
+        '  --keep N          Keep top N umas per category        (default: ' + DEFAULT_CONFIG.keepPerCategory + ')',
+        '  --min-score N     Minimum score for category entry    (default: ' + DEFAULT_CONFIG.minCategoryScore + ')',
+        '  --heart N         Minimum white total for hearts      (default: ' + DEFAULT_CONFIG.heartWhiteThreshold + ')',
+        '  --ace N           Minimum rank score for ace          (default: ' + DEFAULT_CONFIG.aceScoreThreshold + ')',
+        '  --keep-ace N      Max umas assigned ace icon          (default: ' + DEFAULT_CONFIG.keepAce + ')',
+        '  --keep-heart N    Max umas assigned heart icon        (default: ' + DEFAULT_CONFIG.keepHeart + ')',
+        '  --trash N         Number of umas to  transfer.        (default: ' + DEFAULT_CONFIG.numTrash + ')',
+        '  --race ID         Target race ID for recommendations  (example: 6019)',
+        '  --whites          Show white spark breakdown per uma',
+        '  --rank #          Filter output to umas with this rank score',
+        '  --breakdown       Show a breakdown of scores (highly recommended to limit output with other options)'
     ].join('\n'));
     process.exit(1);
   }
 
-  return { jsonPath, config, showWhites, showBreakdown, raceId };
+  return { jsonPath, config, showWhites, showBreakdown, raceId, rankFilter };
 }
 
 function allScores(uma: ScoredUma): string {
-  return Object.entries(uma.scores)
-    .filter(([, v]) => v > 0)
-    .sort((a, b) => b[1] - a[1])
-    .map(([k, v]) => `${k}:${v.toFixed(1)}`)
-    .join('  ');
+  const blues:  string[] = [];
+  const pinks:  string[] = [];
+  const whites: string[] = [];
+  let style = '';
+
+  for (const [k, v] of Object.entries(uma.scores).sort((a, b) => b[1] - a[1])) {
+    if (v <= 0) continue;
+    const val = v.toFixed(1);
+    if (k.startsWith('style:')) {
+      style = (k.replace('style:', '')) + ':' + val;
+    } else if (['speed','stam','power','guts','wit'].includes(k)) {
+      blues.push(`${k}:${val}`);
+    } else if (['turf','dirt','sprnt','mile','mid','long'].includes(k)) {
+      pinks.push(`${k}:${val}`);
+    } else if (['tSpd','spurt','accel','hp','nav'].includes(k)) {
+      whites.push(`${k}:${val}`);
+    }
+  }
+
+  // add a space only if it's not blank
+  style = style + (style ? ' ' : '');
+
+  const parts: string[] = [];
+  parts.push(`|${c(C.blue, blues.join(' ').padEnd(37))}`);
+  parts.push(`|${c(C.red, style)}`);
+  parts.push(`${c(C.magenta, pinks.join(' ').padEnd(27 - style.length))}`);
+  parts.push(`|${c(C.yellow, whites.sort().join(' '))}`);
+  return parts.join('');
 }
 
 function topScores(uma: ScoredUma, n = 3): string {
@@ -106,7 +151,13 @@ function topScores(uma: ScoredUma, n = 3): string {
     .join('  ');
 }
 
-function printTable(results: ScoredUma[], showWhites: boolean, showBreakdown: boolean) {
+function printTable(
+  results: ScoredUma[],
+  config: ClassifierConfig,
+  showWhites: boolean,
+  showBreakdown: boolean,
+  rankFilter: number | null
+) {
   // Group by icon
   const groups = new Map<Icon, ScoredUma[]>();
   for (const icon of ICON_ORDER) groups.set(icon, []);
@@ -127,7 +178,7 @@ function printTable(results: ScoredUma[], showWhites: boolean, showBreakdown: bo
   const raceResults = [...results]
     .filter(u => u.race_score > 0)
     .sort((a, b) => b.race_score - a.race_score)
-    .slice(0, 7);
+    .slice(0, config.keepPerCategory);
 
   if (raceResults.length > 0) {
     console.log('🤝 TOP RACE PARENTS');
@@ -159,6 +210,7 @@ function printTable(results: ScoredUma[], showWhites: boolean, showBreakdown: bo
   }
 
   for (const icon of ICON_ORDER) {
+    if (icon === 'skip') continue;
     const umas = groups.get(icon)!;
     if (umas.length === 0) continue;
 
@@ -166,12 +218,13 @@ function printTable(results: ScoredUma[], showWhites: boolean, showBreakdown: bo
     console.log('─'.repeat(60));
 
     for (const uma of umas.sort((a, b) => b.rank_score - a.rank_score)) {
+      if (rankFilter !== null && uma.rank_score !== rankFilter) continue;
       const lock = uma.is_locked ? '🔒' : '  ';
       const name = lookupCharName(uma.card_id).padEnd(20).slice(0, 20);
       const whites = `whites:${uma.white_total.toFixed(1)}`;
       const scores = allScores(uma);
-      const raceStr = uma.race_score > 0 ? `  race:${uma.race_score.toFixed(1)}` : '';
-      console.log(`  ${lock} rs:${uma.rank_score}  ${name}  whites:${uma.white_total.toFixed(1)}${raceStr}  [${scores}]`);
+      const raceStr = uma.race_score > 0 ? `race:${uma.race_score.toFixed(1)}`.padEnd(6) : '';
+      console.log(` ${lock} rs:${uma.rank_score}  ${name}${whites.padEnd(12)}${raceStr} ${scores}`);
 
       if (showBreakdown) {
         const blues = uma.factors.filter(f => f.type === 'blue');
@@ -193,6 +246,22 @@ function printTable(results: ScoredUma[], showWhites: boolean, showBreakdown: bo
             console.log(`       ${f.source === 'own' ? 'own' : 'par'}  ${'★'.repeat(f.stars)}  ${f.name.padEnd(12)} → ${f.category}:${f.contribution.toFixed(1)}${secondary}`);
           }
         }
+
+        const whites = uma.factors.filter(f => f.type === 'white');
+        if (whites.length > 0) {
+          console.log(`       ── Whites ──`);
+          for (const f of whites) {
+            const src  = f.source === 'own' ? 'own' : 'par';
+            const stars = ('★'.repeat(f.stars) + '☆'.repeat(3 - f.stars)).padEnd(3);
+            const name  = (f.name + ' ').padEnd(28, '-').slice(0, 28);
+            const cat   = f.category !== 'none' ? f.category.padEnd(7) : '-------';
+            const val   = `→ ${f.contribution.toFixed(2)}`;
+            const statBoost = f.stat_boost ? `  +${f.stat_boost}:${f.stat_boost_contribution?.toFixed(2)}` : '';
+            console.log(`       ${src}  ${stars}  ${name}  ${cat}  ${val}${statBoost}`);
+          }
+          console.log();
+        }
+        
         console.log();
       }
 
@@ -248,7 +317,7 @@ function printTable(results: ScoredUma[], showWhites: boolean, showBreakdown: bo
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-const { jsonPath, config, showWhites, showBreakdown, raceId } = parseArgs();
+const { jsonPath, config, showWhites, showBreakdown, raceId, rankFilter } = parseArgs();
 
 let raw: unknown;
 try {
@@ -280,4 +349,4 @@ if (raceId !== null) {
 
 const results = classifyRoster(raw as any, config, skillRelevance);
 
-printTable(results, showWhites, showBreakdown);
+printTable(results, config, showWhites, showBreakdown, rankFilter);

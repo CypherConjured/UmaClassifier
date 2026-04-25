@@ -41,31 +41,33 @@ function specialBonus(
   return 1.0;
 }
 
+export function whiteToCategory(f: FactorEntry): string | null {
+  if (f.is_debuff) return 'debuff';
+  switch (f.skill_category) {
+    case 'Speed Boost': return f.is_last_spurt ? 'guts' : 'speed';
+    case 'Acceleration': return 'power';
+    case 'Recovery': return 'stamina';
+    case 'Lane Effect':
+    case 'Vision': return 'wit';
+    case 'Debuff': return 'debuff';
+    default: return null;
+  }
+}
+
+// ─── Pink Multiplier ──────────────────────────────────────────────────────
+
 function pinkMultiplier(
   f: FactorEntry,
   pinkStars: Map<string, number>
 ): number {
   const cats = [
     ...(f.style_cats ?? []),
-    ...(f.dist_cats  ?? []),
-    ...(f.surf_cats  ?? []),
+    ...(f.dist_cats ?? []),
+    ...(f.surf_cats ?? []),
   ];
   if (cats.length === 0) return 1.0;
   const matching = cats.reduce((sum, cat) => sum + (pinkStars.get(cat) ?? 0), 0);
   return 1 + matching / 6;
-}
-
-export function whiteToCategory(f: FactorEntry): string | null {
-  if (f.is_debuff) return 'debuff';
-  switch (f.skill_category) {
-    case 'Speed Boost':  return f.is_last_spurt ? 'guts' : 'speed';
-    case 'Acceleration': return 'power';
-    case 'Recovery':     return 'stamina';
-    case 'Lane Effect':
-    case 'Vision':       return 'wit';
-    case 'Debuff':       return 'debuff';
-    default:             return null;
-  }
 }
 
 // ─── Pink star collection ──────────────────────────────────────────────────────
@@ -94,6 +96,7 @@ function scoreFactors(
   pinkStars: Map<string, number>,
   factors: FactorContribution[],
   config: ClassifierConfig,
+  whiteOverlap: Map<string, number>,
   skillRelevance?: Map<number, number>
 ): void {
   for (const fid of factor_ids) {
@@ -117,21 +120,6 @@ function scoreFactors(
       if (APTITUDE_PINKS.has(f.category)) {
         const contribution = f.stars * weight;
         scores[f.category] = (scores[f.category] ?? 0) + contribution;
-
-        // Secondary category
-        let secondary_category: string | undefined;
-        let secondary_contribution: number | undefined;
-
-        if (['sprint','mile','mid','long'].includes(f.category)) {
-          secondary_category = 'speed';
-          secondary_contribution = f.stars * weight * 0.5;
-          scores['speed'] = (scores['speed'] ?? 0) + secondary_contribution;
-        } else if (['turf','dirt'].includes(f.category)) {
-          secondary_category = 'power';
-          secondary_contribution = f.stars * weight * 0.5;
-          scores['power'] = (scores['power'] ?? 0) + secondary_contribution;
-        }
-
         factors.push({
           factor_id: fid,
           name: f.name,
@@ -140,13 +128,9 @@ function scoreFactors(
           source,
           category: f.category,
           contribution,
-          secondary_category,
-          secondary_contribution,
         });
-
       } else if (STYLE_PINKS.has(f.category)) {
-        const secondary_contribution = f.stars * weight * 0.5;
-        scores['wit'] = (scores['wit'] ?? 0) + secondary_contribution;
+        // Style pinks — display only, no score contribution
         factors.push({
           factor_id: fid,
           name: f.name,
@@ -155,32 +139,50 @@ function scoreFactors(
           source,
           category: f.category,
           contribution: 0,
-          secondary_category: 'wit',
-          secondary_contribution,
         });
       }
 
     } else if (f.type === 'white') {
       const pm = pinkMultiplier(f, pinkStars);
       const sb = specialBonus(fid, pinkStars);
-      const weighted = f.stars * weight * pm * sb;
-      const display  = f.stars * pm * sb; // unweighted for display
+
+      // Rarity bonus: 3★ whites signal a good run, 1★ are common
+      const rarityBonus = f.stars === 3 ? 1.3 : f.stars === 2 ? 1.0 : 0.8;
+
+      // Lineage overlap bonus: exponential per the guide (×1.1^N)
+      const overlap = whiteOverlap.get(f.name) ?? 1;
+      const overlapBonus = Math.pow(1.1, overlap - 1); // -1 so single instance = 1.0x
+
+      const weighted = f.stars * weight * pm * sb * rarityBonus * overlapBonus;
+      const display = f.stars * pm * sb * rarityBonus * overlapBonus;
 
       whiteTotal.value += weighted;
 
       const cat = whiteToCategory(f);
       let contribution = 0;
 
-      if (cat === 'debuff') {
-        debuffScore.value += f.stars * weight;
-      } else if (cat) {
-        contribution = weighted * config.whiteSkillMultiplier;
-        scores[cat] = (scores[cat] ?? 0) + contribution;
+      // Display-only skill type scores (don't drive icon assignment)
+      if (f.skill_category) {
+        const typeKey = f.is_last_spurt ? 'spurt'
+          : f.skill_category === 'Speed Boost' ? 'tSpd'
+          : f.skill_category === 'Acceleration' ? 'accel'
+          : f.skill_category === 'Recovery' ? 'hp'
+          : f.skill_category === 'Lane Effect' ? 'nav'
+          : f.skill_category === 'Vision' ? 'nav'
+          : null;
+        if (typeKey) {
+          scores[typeKey] = (scores[typeKey] ?? 0) + weighted;
+        }
       }
 
+      if (cat === 'debuff') {
+        debuffScore.value += f.stars * weight;
+      }
+
+      let statBoostContribution: number | undefined;
       if (f.stat_boost) {
-        const statContrib = weighted * config.whiteStatBoostMultiplier;
-        scores[f.stat_boost] = (scores[f.stat_boost] ?? 0) + statContrib;
+        statBoostContribution = weighted * config.whiteStatBoostMultiplier;
+        scores[f.stat_boost] = (scores[f.stat_boost] ?? 0) + statBoostContribution;
       }
 
       factors.push({
@@ -193,6 +195,8 @@ function scoreFactors(
         contribution,
         pink_multiplier: pm,
         special_bonus: sb,
+        stat_boost: f.stat_boost ?? undefined,
+        stat_boost_contribution: statBoostContribution,
         final_value: display,
         dist_cats: f.dist_cats ?? [],
         style_cats: f.style_cats ?? [],
@@ -227,13 +231,39 @@ function scoreUma(
   collectPinks(uma.factor_id_array, pinkStars);
   for (const p of directParents) collectPinks(p.factor_id_array, pinkStars);
 
+  // Pre-build white overlap counts for lineage bonus
+  const whiteOverlap = new Map<string, number>();
+  const allFactorIds = [
+    ...uma.factor_id_array,
+    ...directParents.flatMap(p => p.factor_id_array),
+  ];
+  for (const fid of allFactorIds) {
+    const f = lookupFactor(fid);
+    if (f?.type === 'white') {
+      whiteOverlap.set(f.name, (whiteOverlap.get(f.name) ?? 0) + 1);
+    }
+  }
+
   // Pass 2: score everything
   scoreFactors(uma.factor_id_array, config.weights.own, 'own',
-    scores, whiteTotal, debuffScore, pinkStars, factors, config, skillRelevance);
+    scores, whiteTotal, debuffScore, pinkStars, factors, config, whiteOverlap, skillRelevance);
 
   for (const p of directParents) {
     scoreFactors(p.factor_id_array, config.weights.parent, 'parent',
-      scores, whiteTotal, debuffScore, pinkStars, factors, config, skillRelevance);
+      scores, whiteTotal, debuffScore, pinkStars, factors, config, whiteOverlap, skillRelevance);
+  }
+
+  // Dominant style: highest star-count style pink across own + parents
+  const styleTotals = new Map<string, number>();
+  for (const f of factors) {
+    if (f.type === 'pink' && STYLE_PINKS.has(f.category)) {
+      styleTotals.set(f.category, (styleTotals.get(f.category) ?? 0) + f.stars);
+    }
+  }
+  if (styleTotals.size > 0) {
+    const [dominantStyle, styleScore] = [...styleTotals.entries()]
+      .sort((a, b) => b[1] - a[1])[0];
+    scores[`style:${dominantStyle}`] = styleScore;
   }
 
   return {
@@ -246,8 +276,19 @@ function scoreUma(
     debuff_score: debuffScore.value,
     race_score: 0,
     factors,
-    assigned_icon: null,
+    assigned_icon: null
   };
+}
+
+// ─── Overall Score for Transfer Candidates ──────────────────────────────────────────────────────────
+
+function overallScore(uma: ScoredUma): number {
+  const blueScore = ['speed', 'stamina', 'power', 'guts', 'wit']
+    .reduce((sum, cat) => sum + (uma.scores[cat] ?? 0), 0);
+  const pinkScore = ['turf', 'dirt', 'sprint', 'mile', 'mid', 'long']
+    .reduce((sum, cat) => sum + (uma.scores[cat] ?? 0), 0);
+  const whiteScore = uma.white_total;
+  return (blueScore * 0.6) + (pinkScore * 0.8) + (whiteScore * 1.5);
 }
 
 // ─── Heart assignment ──────────────────────────────────────────────────────────
@@ -354,8 +395,17 @@ export function classifyRoster(
   for (const uma of debuffCandidates) assigned.set(uma.trained_chara_id, 'clubs');
 
   // Trash
+  const unassigned = scored
+    .filter(u => !assigned.has(u.trained_chara_id))
+    .sort((a, b) => overallScore(a) - overallScore(b));
+
+  for (let i = 0; i < Math.min(config.numTrash, unassigned.length); i++) {
+    assigned.set(unassigned[i].trained_chara_id, 'trash');
+  }
+
+    // Final assignment — null means unlisted (has some value, not trash)
   for (const uma of scored) {
-    uma.assigned_icon = assigned.get(uma.trained_chara_id) ?? 'trash';
+    uma.assigned_icon = assigned.get(uma.trained_chara_id) ?? 'skip';
   }
 
   return scored;

@@ -61,7 +61,7 @@ export interface DecodedFactor {
 
 // ─── Icon / favorite mark ─────────────────────────────────────────────────────
 
-export type Icon =
+export type Icon = 'skip'
   | 'speed'     // 🥤 boba
   | 'stamina'   // 🍚 rice bowl
   | 'power'     // 🍫 choco cake
@@ -93,6 +93,8 @@ export interface FactorContribution {
   // White-specific
   pink_multiplier?: number;
   special_bonus?: number;
+  stat_boost?: string;
+  stat_boost_contribution?: number;
   final_value?: number;
   dist_cats?: string[];
   style_cats?: string[];
@@ -127,6 +129,8 @@ export interface ClassifierConfig {
   keepAce: number;
   // How many umas to keep for white skills
   keepHeart: number;
+  // How many umas to consider for transfer
+  numTrash: number;
   // Minimum score to even be considered for a category (avoids noise)
   minCategoryScore: number;
   // White star total threshold to qualify for heart icon
@@ -139,21 +143,20 @@ export interface ClassifierConfig {
     parent: number; // position_id 10 or 20 only; grandparents are ignored
   };
   // Extra multiplier applied to white stars when rolling into category score
-  whiteSkillMultiplier: number;
   whiteStatBoostMultiplier: number;
 }
 
 export const DEFAULT_CONFIG: ClassifierConfig = {
-  keepPerCategory: 7,
+  keepPerCategory: 10,
   keepAce: 20,
   keepHeart: 20,
-  minCategoryScore: 2,
-  heartWhiteThreshold: 20,
-  aceScoreThreshold: 12500,
+  numTrash: 20,
+  minCategoryScore: 1,
+  heartWhiteThreshold: 10,
+  aceScoreThreshold: 12000,
   weights: {
     own: 1,
     parent: 0.6,
   },
-  whiteSkillMultiplier: 1,
   whiteStatBoostMultiplier: 0.5,
 };
