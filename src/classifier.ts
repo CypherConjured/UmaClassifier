@@ -145,6 +145,7 @@ function scoreFactors(
     } else if (f.type === 'white') {
       const pm = pinkMultiplier(f, pinkStars);
       const sb = specialBonus(fid, pinkStars);
+      const cat = whiteToCategory(f);
 
       // Rarity bonus: 3★ whites signal a good run, 1★ are common
       const rarityBonus = f.stars === 3 ? 1.3 : f.stars === 2 ? 1.0 : 0.8;
@@ -156,28 +157,29 @@ function scoreFactors(
       const weighted = f.stars * weight * pm * sb * rarityBonus * overlapBonus;
       const display = f.stars * pm * sb * rarityBonus * overlapBonus;
 
-      whiteTotal.value += weighted;
 
-      const cat = whiteToCategory(f);
+      if (cat === 'debuff') {
+        debuffScore.value += f.stars * weight;
+      } else {
+        whiteTotal.value += weighted; 
+      }
+
       let contribution = 0;
 
       // Display-only skill type scores (don't drive icon assignment)
       if (f.skill_category) {
-        const typeKey = f.is_last_spurt ? 'spurt'
-          : f.skill_category === 'Speed Boost' ? 'tSpd'
+        const typeKey = f.is_last_spurt         ? 'spurt'
+          : f.skill_category === 'Speed Boost'  ? 'tSpd'
           : f.skill_category === 'Acceleration' ? 'accel'
-          : f.skill_category === 'Recovery' ? 'hp'
-          : f.skill_category === 'Lane Effect' ? 'nav'
-          : f.skill_category === 'Vision' ? 'nav'
+          : f.skill_category === 'Recovery'     ? 'hp'
+          : f.skill_category === 'Lane Effect'  ? 'nav'
+          : f.skill_category === 'Vision'       ? 'nav'
           : null;
         if (typeKey) {
           scores[typeKey] = (scores[typeKey] ?? 0) + weighted;
         }
       }
 
-      if (cat === 'debuff') {
-        debuffScore.value += f.stars * weight;
-      }
 
       let statBoostContribution: number | undefined;
       if (f.stat_boost) {
@@ -361,6 +363,13 @@ export function classifyRoster(
 
   const assigned = new Map<number, Icon>();
 
+  // Debuffers first
+  const debuffCandidates = scored
+    .filter(u => !assigned.has(u.trained_chara_id) && u.debuff_score > 0)
+    .sort((a, b) => b.debuff_score - a.debuff_score)
+    .slice(0, config.keepPerCategory);
+  for (const uma of debuffCandidates) assigned.set(uma.trained_chara_id, 'clubs');
+
   // Top-N per icon category
   for (const icon of ICON_CATEGORIES) {
     const candidates = scored
@@ -386,13 +395,6 @@ export function classifyRoster(
     .sort((a, b) => b.rank_score - a.rank_score)
     .slice(0, config.keepAce);
   for (const uma of aceCandidates) assigned.set(uma.trained_chara_id, 'ace');
-
-  // Debuff
-  const debuffCandidates = scored
-    .filter(u => !assigned.has(u.trained_chara_id) && u.debuff_score > 0)
-    .sort((a, b) => b.debuff_score - a.debuff_score)
-    .slice(0, config.keepPerCategory);
-  for (const uma of debuffCandidates) assigned.set(uma.trained_chara_id, 'clubs');
 
   // Trash
   const unassigned = scored

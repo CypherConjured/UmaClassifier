@@ -53,7 +53,7 @@ const ICON_ORDER: Icon[] = [
 function parseSingleArg(args: string[], i: number, type: 'int' | 'float', usage: string): number {
   const val = args[i + 1];
   const parsed = type === 'int' ? parseInt(val) : parseFloat(val);
-  if (!val || isNaN(parsed) || (type === 'int' && parsed <= 0)) {
+  if (!val || isNaN(parsed) || (type === 'int' && parsed < 0)) {
     console.error(`Usage: ${usage}`);
     process.exit(1);
   }

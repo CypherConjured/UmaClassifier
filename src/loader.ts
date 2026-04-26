@@ -16,10 +16,16 @@ interface RawFactor {
   type: number;
 }
 
+interface RawEffect {
+  type: string;
+  value: number;
+  displayText: string;
+}
 interface RawSkill {
   skillId: number;
   skillName: string;
   skillCategory: string;
+  effects: RawEffect[];
   tagId: string;
   activationCondition: string;
 }
@@ -101,6 +107,9 @@ function buildFactorMap(factors: RawFactor[], skillByName: Map<string, RawSkill>
       const hintName = type === 5 ? extractHintName(description) : name;
       const skill = hintName ? skillByName.get(hintName) : undefined;
       const tags = skill ? skill.tagId.split('/') : [];
+      const isType10:boolean = 'Type10' == skill?.effects[0]?.type
+      let sc = '';
+      if(isType10){sc = 'Focus'} else { sc = skill?.skillCategory ?? '' }
 
       map.set(id, {
         type: 'white',
@@ -110,8 +119,8 @@ function buildFactorMap(factors: RawFactor[], skillByName: Map<string, RawSkill>
         style_cats: tags.filter(t => t in STYLE_TAG).map(t => STYLE_TAG[t]),
         dist_cats:  tags.filter(t => t in DIST_TAG).map(t => DIST_TAG[t]),
         surf_cats:  tags.filter(t => t in SURF_TAG).map(t => SURF_TAG[t]),
-        is_debuff:  skill?.skillCategory === 'Debuff',
-        skill_category: skill?.skillCategory ?? undefined,
+        is_debuff:  !isType10 && skill?.skillCategory === 'Debuff',
+        skill_category: sc ?? undefined,
         is_last_spurt: skill
           ? skill.activationCondition.includes('is_lastspurt==1')
           : false,
