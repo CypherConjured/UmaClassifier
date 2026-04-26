@@ -31,14 +31,10 @@ function isDirectParent(position_id: number): boolean {
 
 function specialBonus(
   factor_id: number,
-  pinkStars: Map<string, number>
+  config: ClassifierConfig
 ): number {
   const base = Math.floor(factor_id / 10) * 10 + 1;
-  if (base === GROUNDWORK_ID_BASE) {
-    return (pinkStars.get('front') ?? 0) > 0 ? 2.0 : 1.5;
-  }
-  if (base === TAIL_HELD_HIGH_ID_BASE) return 1.5;
-  return 1.0;
+  return config.skillBonuses[base] ?? 1.0;
 }
 
 export function whiteToCategory(f: FactorEntry): string | null {
@@ -144,7 +140,7 @@ function scoreFactors(
 
     } else if (f.type === 'white') {
       const pm = pinkMultiplier(f, pinkStars);
-      const sb = specialBonus(fid, pinkStars);
+      const sb = specialBonus(fid, config);
       const cat = whiteToCategory(f);
 
       // Rarity bonus: 3★ whites signal a good run, 1★ are common
@@ -268,6 +264,26 @@ function scoreUma(
     scores[`style:${dominantStyle}`] = styleScore;
   }
 
+  // Build category_factors map for UI breakdown
+  const category_factors: Record<string, FactorContribution[]> = {};
+  for (const f of factors) {
+    // Primary category
+    if (f.contribution > 0) {
+      if (!category_factors[f.category]) category_factors[f.category] = [];
+      category_factors[f.category].push(f);
+    }
+    // Secondary category (pinks)
+    if (f.secondary_contribution && f.secondary_category) {
+      if (!category_factors[f.secondary_category]) category_factors[f.secondary_category] = [];
+      category_factors[f.secondary_category].push(f);
+    }
+    // Stat boost (type 5 whites)
+    if (f.stat_boost_contribution && f.stat_boost) {
+      if (!category_factors[f.stat_boost]) category_factors[f.stat_boost] = [];
+      category_factors[f.stat_boost].push(f);
+    }
+  }
+
   return {
     trained_chara_id: uma.trained_chara_id,
     card_id: uma.card_id,
@@ -278,6 +294,7 @@ function scoreUma(
     debuff_score: debuffScore.value,
     race_score: 0,
     factors,
+    category_factors,
     assigned_icon: null
   };
 }

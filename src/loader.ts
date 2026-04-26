@@ -42,6 +42,7 @@ export interface FactorEntry {
   dist_cats?: string[];
   surf_cats?: string[];
   skill_category?: string;
+  effects?: Array<{ type: string; value: number }>;
   is_last_spurt?: boolean;
   is_debuff?: boolean;
 }

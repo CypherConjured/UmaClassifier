@@ -117,7 +117,17 @@ export interface ScoredUma {
   debuff_score: number;
   race_score: number;
   factors: FactorContribution[];
+  category_factors: Record<string, FactorContribution[]>;
   assigned_icon: Icon | null;
+}
+
+// ─── Race Environment ────────────────────────────────────────────────────────
+
+export interface RaceEnvironment { //Full design TBD
+  raceId?: number;
+  groundCondition?: number;  // 1-4
+  weather?: number;          // 1-4
+  runningStyle?: number;     // 1-4
 }
 
 // ─── Classifier config ────────────────────────────────────────────────────────
@@ -142,6 +152,7 @@ export interface ClassifierConfig {
     own: number;
     parent: number; // position_id 10 or 20 only; grandparents are ignored
   };
+  skillBonuses: Record<number, number>; // skillId (base, 1★ variant) → multiplier
   // Extra multiplier applied to white stars when rolling into category score
   whiteStatBoostMultiplier: number;
 }
@@ -157,6 +168,10 @@ export const DEFAULT_CONFIG: ClassifierConfig = {
   weights: {
     own: 1,
     parent: 0.6,
+  },
+  skillBonuses: {
+    2016001: 1.5,  // Groundwork (no front runner pinks)
+    2016101: 1.5,  // Tail Held High
   },
   whiteStatBoostMultiplier: 0.5,
 };

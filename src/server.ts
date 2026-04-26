@@ -39,7 +39,14 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       const config = {
         ...DEFAULT_CONFIG,
         ...(body.config ?? {}),
-        weights: { ...DEFAULT_CONFIG.weights, ...(body.config?.weights ?? {}) }
+        weights: {
+          ...DEFAULT_CONFIG.weights,
+          ...(body.config?.weights ?? {}),
+        },
+        skillBonuses: {
+          ...DEFAULT_CONFIG.skillBonuses,
+          ...(body.config?.skillBonuses ?? {}),
+        },
       };
       const skillRelevance = body.targetRaceId
         ? buildSkillRelevanceMap(body.targetRaceId) ?? undefined
