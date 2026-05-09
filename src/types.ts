@@ -51,23 +51,10 @@ export type PinkCategory = 'turf' | 'dirt' | 'sprint' | 'mile' | 'mid' | 'long';
 export type StyleCategory = 'front' | 'pace' | 'late' | 'end';
 export type WhiteCategory = 'white';
 export type UniqueCategory = 'unique';
-export type FactorCategory = BlueCategory | PinkCategory | StyleCategory | WhiteCategory | UniqueCategory;
-
-export interface DecodedFactor {
-  factor_id: number;
-  category: FactorCategory;
-  stars: number;
-}
 
 // ─── Icon / favorite mark ─────────────────────────────────────────────────────
 
 export type Icon = 'skip'
-  | 'speed'     // 🥤 boba
-  | 'stamina'   // 🍚 rice bowl
-  | 'power'     // 🍫 choco cake
-  | 'guts'      // 🥕 carrot
-  | 'wit'       // 🍰 strawberry cake
-  | 'turf'      // ♦ diamond
   | 'dirt'      // 👟 dirt shoe
   | 'sprint'    // 👟 sprint shoe
   | 'mile'      // 👟 mile shoe
@@ -123,11 +110,14 @@ export interface ScoredUma {
 
 // ─── Race Environment ────────────────────────────────────────────────────────
 
-export interface RaceEnvironment { //Full design TBD
+export interface RaceEnvironment {
   raceId?: number;
-  groundCondition?: number;  // 1-4
-  weather?: number;          // 1-4
-  runningStyle?: number;     // 1-4
+  distanceType?: number;   // 1=Sprint, 2=Mile, 3=Middle, 4=Long
+  groundType?: number;     // 1=Turf, 2=Dirt
+  groundCondition?: number;// 1=Firm, 2=Good, 3=Soft, 4=Heavy
+  weather?: number;        // 1=Sunny, 2=Cloudy, 3=Rainy, 4=Snowy
+  trackId?: number;        // specific course ID
+  runningStyle?: number;   // 1=Front, 2=Pace, 3=Late, 4=End
 }
 
 // ─── Classifier config ────────────────────────────────────────────────────────
@@ -159,8 +149,8 @@ export interface ClassifierConfig {
 
 export const DEFAULT_CONFIG: ClassifierConfig = {
   keepPerCategory: 10,
-  keepAce: 20,
-  keepHeart: 20,
+  keepAce: 10,
+  keepHeart: 10,
   numTrash: 20,
   minCategoryScore: 1,
   heartWhiteThreshold: 10,
