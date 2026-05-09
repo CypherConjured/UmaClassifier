@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { RaceEnvironment } from './types.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ASSETS = join(__dirname, 'assets');
@@ -110,6 +111,7 @@ function buildFactorMap(factors: RawFactor[], skillByName: Map<string, RawSkill>
       const tags = skill ? skill.tagId.split('/') : [];
       const isType10:boolean = 'Type10' == skill?.effects[0]?.type
       let sc = '';
+      //for some reason, Focus/Concentration are listed as Debuff, fix by checking for Type10
       if(isType10){sc = 'Focus'} else { sc = skill?.skillCategory ?? '' }
 
       map.set(id, {
@@ -210,87 +212,174 @@ export function getRaceMap(): Map<number, RaceEntry> {
   return _raceMap;
 }
 
-export function buildSkillRelevanceMap(raceId: number): Map<number, number> | null {
-  const race = getRaceMap().get(raceId);
-  if (!race) return null;
+export function buildSkillRelevanceMap(
+  env: RaceEnvironment
+): Map<number, number> | null {
+  // If a raceId is provided, derive environment fields from race data
+  if (env.raceId) {
+    const race = getRaceMap().get(env.raceId);
+    if (!race) return null;
+
+    const distMap: Record<string, number> = {
+      'Short': 1, 'Mile': 2, 'Middle': 3, 'Long': 4,
+    };
+    env = {
+      ...env,
+      distanceType:  env.distanceType  ?? distMap[race.distanceCategory],
+      groundType:    env.groundType    ?? race.ground,
+      trackId:       env.trackId       ?? race.trackId,
+    };
+  }
 
   const factorMap = getFactorMap();
+
+  // Load skills for activation condition parsing
+  const skills: RawSkill[] = JSON.parse(
+    readFileSync(join(ASSETS, 'TerumiSimpleSkillData.json'), 'utf-8')
+  );
+  const skillByName = new Map(skills.map(s => [s.skillName, s]));
+
   const skillMap = new Map<number, number>();
 
-  // Distance type mapping
-  const distMap: Record<string, number> = {
-    'Short': 1, 'Mile': 2, 'Middle': 3, 'Long': 4,
+  const distCatMap: Record<string, number> = {
+    'sprint': 1, 'mile': 2, 'mid': 3, 'long': 4,
   };
-  const raceDistType = distMap[race.distanceCategory];
-
-  // Ground type: 1=Turf, 2=Dirt (matches game's ground field)
-  const raceGroundType = race.ground;
+  const surfCatMap: Record<string, number> = {
+    'turf': 1, 'dirt': 2,
+  };
 
   for (const [fid, entry] of factorMap) {
     if (entry.type !== 'white') continue;
 
-    // Parse the skill's activation conditions from dist_cats/surf_cats
-    const distCatMap: Record<string, number> = {
-      'sprint': 1, 'mile': 2, 'mid': 3, 'long': 4,
-    };
-    const surfCatMap: Record<string, number> = {
-      'turf': 1, 'dirt': 2,
-    };
+    const skill = skillByName.get(entry.name);
+    if (!skill) {
+      skillMap.set(fid, 0.5); // unknown skill — generic relevance
+      continue;
+    }
 
+    const cond = skill.activationCondition;
+
+    // ── Track-specific skills ─────────────────────────────────────────────────
+    if (cond.includes('track_id')) {
+      const match = cond.match(/track_id==(\d+)/);
+      if (match) {
+        const skillTrackId = parseInt(match[1]);
+        skillMap.set(fid, skillTrackId === env.trackId ? 2.0 : 0);
+      }
+      continue;
+    }
+
+    // ── Passive skills (green skills) — score by effect value + condition match ─
+    if (skill.skillCategory === 'Passive') {
+      const condMatch = matchesEnvironment(cond, env);
+      if (condMatch === 'mismatch') {
+        skillMap.set(fid, 0);
+        continue;
+      }
+
+      // Score by total positive stat effect value, normalized
+      const effectScore = (skill.effects ?? [])
+        .filter(e => e.value > 0)
+        .reduce((sum, e) => sum + e.value, 0);
+
+      // Normalize: +100 stat points → relevance 1.0, scale from there
+      const normalized = effectScore / 100;
+      skillMap.set(fid, condMatch === 'match' ? normalized * 1.5 : normalized * 0.5);
+      continue;
+    }
+
+    // ── Regular white skills — score by dist/surf tag match ──────────────────
     const skillDistTypes = (entry.dist_cats ?? []).map(c => distCatMap[c]).filter(Boolean);
     const skillSurfTypes = (entry.surf_cats ?? []).map(c => surfCatMap[c]).filter(Boolean);
-    const hasTrackCondition = false; // track_id skills handled separately below
-
     const isGeneric = skillDistTypes.length === 0 && skillSurfTypes.length === 0;
 
     if (isGeneric) {
-      skillMap.set(fid, 0.5);
+      // Check style match if running style specified
+      if (env.runningStyle && entry.style_cats && entry.style_cats.length > 0) {
+        const styleMap: Record<number, string> = {
+          1: 'front', 2: 'pace', 3: 'late', 4: 'end',
+        };
+        const envStyle = styleMap[env.runningStyle];
+        const styleMatch = entry.style_cats.includes(envStyle);
+        skillMap.set(fid, styleMatch ? 1.0 : 0.5);
+      } else {
+        skillMap.set(fid, 0.5);
+      }
       continue;
     }
 
     let score = 0;
     let mismatches = 0;
 
-    if (skillDistTypes.length > 0) {
-      if (skillDistTypes.includes(raceDistType)) {
+    if (skillDistTypes.length > 0 && env.distanceType != null) {
+      if (skillDistTypes.includes(env.distanceType)) {
         score += 1.5;
       } else {
         mismatches++;
       }
     }
 
-    if (skillSurfTypes.length > 0) {
-      if (skillSurfTypes.includes(raceGroundType)) {
+    if (skillSurfTypes.length > 0 && env.groundType != null) {
+      if (skillSurfTypes.includes(env.groundType)) {
         score += 1.0;
       } else {
         mismatches++;
       }
     }
 
+    // Style match bonus
+    if (env.runningStyle && entry.style_cats && entry.style_cats.length > 0) {
+      const styleMap: Record<number, string> = {
+        1: 'front', 2: 'pace', 3: 'late', 4: 'end',
+      };
+      const envStyle = styleMap[env.runningStyle];
+      if (entry.style_cats.includes(envStyle)) score += 0.5;
+    }
+
     skillMap.set(fid, mismatches > 0 && score === 0 ? 0 : score);
   }
 
-  // Handle track-specific skills separately via skill name matching
-  // (these have track_id in their activation condition)
-  // We load skill data to get track_id conditions
-  const skills: Array<{ skillId: number; skillName: string; activationCondition: string }> =
-    JSON.parse(readFileSync(join(ASSETS, 'TerumiSimpleSkillData.json'), 'utf-8'));
+  return skillMap;
+}
 
-  const trackSkills = skills.filter(s => s.activationCondition.includes('track_id'));
-  const skillByName = new Map(skills.map(s => [s.skillName, s]));
+// ─── Activation condition matching ────────────────────────────────────────────
 
-  for (const [fid, entry] of factorMap) {
-    if (entry.type !== 'white') continue;
-    const skill = skillByName.get(entry.name);
-    if (!skill) continue;
-    if (!skill.activationCondition.includes('track_id')) continue;
+// There is something strange about this logic
+// TODO: explain what mismatch/match actually mean and if it's even possible to get partial
+function matchesEnvironment(
+  cond: string,
+  env: RaceEnvironment
+): 'match' | 'partial' | 'mismatch' {
+  // Parse all == conditions from the activation string
+  const checks = [...cond.matchAll(/([a-z_]+)==(\d+)/g)].map(m => ({
+    field: m[1],
+    value: parseInt(m[2]),
+  }));
 
-    const match = skill.activationCondition.match(/track_id==(\d+)/);
-    if (!match) continue;
-    const skillTrackId = parseInt(match[1]);
+  if (checks.length === 0) return 'partial';
 
-    skillMap.set(fid, skillTrackId === race.trackId ? 2.0 : 0);
+  const FIELD_MAP: Record<string, keyof RaceEnvironment> = {
+    'ground_condition': 'groundCondition',
+    'weather':          'weather',
+    'distance_type':    'distanceType',
+    'ground_type':      'groundType',
+    'running_style':    'runningStyle',
+    'track_id':         'trackId',
+  };
+
+  let matched = 0;
+  let mismatched = 0;
+  let unknown = 0;
+
+  for (const { field, value } of checks) {
+    const envKey = FIELD_MAP[field];
+    if (!envKey) { unknown++; continue; }
+    const envVal = env[envKey];
+    if (envVal == null) { unknown++; continue; }
+    if (envVal === value) { matched++; } else { mismatched++; }
   }
 
-  return skillMap;
+  if (mismatched > 0) return 'mismatch';
+  if (matched > 0)    return 'match';
+  return 'partial';
 }

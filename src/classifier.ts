@@ -19,8 +19,7 @@ const STYLE_PINKS    = new Set(['front','pace','late','end']);
 const ALL_PINKS      = new Set([...APTITUDE_PINKS, ...STYLE_PINKS]);
 
 const ICON_CATEGORIES: Icon[] = [
-  'speed', 'stamina', 'power', 'guts', 'wit',
-  'turf', 'dirt', 'sprint', 'mile', 'mid', 'long',
+  'dirt', 'sprint', 'mile', 'mid', 'long',
 ];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -126,7 +125,8 @@ function scoreFactors(
           contribution,
         });
       } else if (STYLE_PINKS.has(f.category)) {
-        // Style pinks — display only, no score contribution
+        // Style pinks — display only, no score contribution (wait what!? huh?)
+        // TODO actually score these probably? (unless I'm not understanding )
         factors.push({
           factor_id: fid,
           name: f.name,
@@ -422,7 +422,7 @@ export function classifyRoster(
     assigned.set(unassigned[i].trained_chara_id, 'trash');
   }
 
-    // Final assignment — null means unlisted (has some value, not trash)
+  // Final assignment — null means unlisted (not great, but not bad enough to trash)
   for (const uma of scored) {
     uma.assigned_icon = assigned.get(uma.trained_chara_id) ?? 'skip';
   }

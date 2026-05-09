@@ -9,8 +9,8 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classifyRoster, } from './classifier.ts';
-import { lookupCharName, buildSkillRelevanceMap, getRaceMap } from './loader.ts';
-import { DEFAULT_CONFIG } from './types.ts';
+import { buildSkillRelevanceMap, getRaceMap, lookupCharName } from './loader.ts';
+import { DEFAULT_CONFIG, RaceEnvironment } from './types.ts';
 
 const PORT = 3000;
 
@@ -48,16 +48,22 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
           ...(body.config?.skillBonuses ?? {}),
         },
       };
-      const skillRelevance = body.targetRaceId
-        ? buildSkillRelevanceMap(body.targetRaceId) ?? undefined
+      const env: RaceEnvironment | undefined = body.targetRaceId
+      ? {
+          raceId:         body.targetRaceId,
+          groundCondition: body.groundCondition ?? undefined,
+          weather:         body.weather         ?? undefined,
+          runningStyle:    body.runningStyle     ?? undefined,
+        }
+      : undefined;
+
+      const skillRelevance = env
+        ? buildSkillRelevanceMap(env) ?? undefined
         : undefined;
-      const targetRace = body.targetRaceId
-        ? getRaceMap().get(body.targetRaceId) ?? null
-        : null;
       const results = classifyRoster(body.data, config, skillRelevance);
       const named = results.map(r => ({ ...r, name: lookupCharName(r.card_id) }));
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ results: named, targetRace }));
+      res.end(JSON.stringify({ results: named, env }));
     } catch (e) {
       res.writeHead(400, { 'Content-Type': 'text/plain' });
       res.end(String(e));

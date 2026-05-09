@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { classifyRoster } from './classifier.ts';
 import { buildSkillRelevanceMap, getRaceMap, lookupCharName } from './loader.ts';
-import type { ClassifierConfig, Icon, ScoredUma } from './types.ts';
+import type { ClassifierConfig, Icon, RaceEnvironment, ScoredUma } from './types.ts';
 import { DEFAULT_CONFIG } from './types.ts';
 
 const C = {
@@ -27,12 +27,6 @@ const c = (color: string, text: string) => `${color}${text}${C.reset}`;
 
 const ICON_DISPLAY: Record<Icon, string> = {
   skip: 'Unlisted (skip)',
-  speed: '🥤 Speed',
-  stamina: '🍚 Stamina',
-  power: '🍫 Power',
-  guts: '🥕 Guts',
-  wit: '🍰 Wit',
-  turf: '♦  Turf',
   dirt: '👟 Dirt',
   sprint: '👟 Sprint',
   mile: '👟 Mile',
@@ -45,8 +39,7 @@ const ICON_DISPLAY: Record<Icon, string> = {
 };
 
 const ICON_ORDER: Icon[] = [
-  'speed', 'stamina', 'power', 'guts', 'wit',
-  'turf', 'dirt', 'sprint', 'mile', 'mid', 'long',
+  'dirt', 'sprint', 'mile', 'mid', 'long',
   'heart', 'clubs', 'ace', 'trash','skip'
 ];
 
@@ -79,7 +72,7 @@ function parseArgs() {
       case '--ace':        config.aceScoreThreshold   = parseSingleArg(args, i++, 'int',   '--ace {N}           Minimum rank score for ace fallback (default: ' + DEFAULT_CONFIG.aceScoreThreshold + ')'); break;
       case '--keep-ace':   config.keepAce             = parseSingleArg(args, i++, 'int',   '--keep-ace {N}      Max umas to assign ace icon (default: ' + DEFAULT_CONFIG.keepAce + ')'); break;
       case '--keep-heart': config.keepHeart           = parseSingleArg(args, i++, 'int',   '--keep-heart {N}    Max umas to assign heart icon (default: ' + DEFAULT_CONFIG.keepHeart + ')'); break;
-      case '--trash':  config.numTrash                = parseSingleArg(args, i++, 'int',   '--trash {N}     Number of umas to consider for transfer. (default: ' + DEFAULT_CONFIG.numTrash + ')'); break;
+      case '--trash':      config.numTrash            = parseSingleArg(args, i++, 'int',   '--trash {N}     Number of umas to consider for transfer. (default: ' + DEFAULT_CONFIG.numTrash + ')'); break;
       case '--race':       raceId                     = parseSingleArg(args, i++, 'int',   '--race {ID}         Target race ID for parent recommendations (example: --race 6019)'); break;
       case '--rank':       rankFilter                 = parseSingleArg(args, i++, 'int',   '--rank #            Filter output to umas with this rank score'); break;
       case '--whites':     showWhites                 = true; break;
@@ -335,10 +328,10 @@ if (!Array.isArray(raw)) {
 console.log(`Loaded ${raw.length} umas from ${jsonPath}`);
 console.log(`Config: keep=${config.keepPerCategory}, min-score=${config.minCategoryScore}, heart-threshold=${config.heartWhiteThreshold}, ace-threshold=${config.aceScoreThreshold}`);
 
-// After loading JSON, before classifyRoster:
 let skillRelevance: Map<number, number> | undefined;
 if (raceId !== null) {
-  skillRelevance = buildSkillRelevanceMap(raceId) ?? undefined;
+  const env: RaceEnvironment = { raceId };
+  skillRelevance = buildSkillRelevanceMap(env) ?? undefined;
   if (!skillRelevance) {
     console.error(`Unknown race ID: ${raceId}`);
     process.exit(1);
