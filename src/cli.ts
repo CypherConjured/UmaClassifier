@@ -196,10 +196,10 @@ function printTable(
       if (rankFilter !== null && uma.rank_score !== rankFilter) continue;
       const lock = uma.is_locked ? '🔒' : '  ';
       const name = lookupCharName(uma.card_id).padEnd(20).slice(0, 20);
-      const whites = `whites:${uma.white_total.toFixed(1)}`;
+      const skill_score = `whites:${uma.white_total.toFixed(1)}`;
       const scores = allScores(uma);
       const raceStr = uma.race_score > 0 ? `race:${uma.race_score.toFixed(1)}`.padEnd(6) : '';
-      console.log(` ${lock} rs:${uma.rank_score}  ${name}${whites.padEnd(12)}${raceStr} ${scores}`);
+      console.log(` ${lock} rs:${uma.rank_score}  ${name}${skill_score.padEnd(12)}${raceStr} ${scores}`);
 
       if (showBreakdown) {
         const blues  = uma.factors.filter(f => f.type === 'blue');
@@ -236,6 +236,7 @@ function printTable(
             const pen   = f.contribution < 0 ? c(C.red, 'PENALTY') : '';
             console.log(`       ${src}  ${stars}  ${name}  ${tag}  contrib:${f.contribution.toFixed(2)} ${pen}`);
           }
+          console.log();
         }
 
         if (greens.length > 0) {
@@ -257,7 +258,6 @@ function printTable(
             const val = `→ ${w.contribution.toFixed(2)}`;
             console.log(`       ${src} ${catTag} ${stars} ${name} ${sb} ${val}`);
           }
-          console.log();
         }
 
         if (whites.length > 0) {

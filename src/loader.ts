@@ -34,7 +34,7 @@ interface RawSkill {
 // ─── Public types ──────────────────────────────────────────────────────────────
 
 export interface FactorEntry {
-  type: 'blue' | 'pink' | 'white' | 'unique' | 'green' | 'scenario';
+  type: 'blue' | 'pink' | 'white' | 'unique' | 'passive' | 'scenario';
   category?: string;
   stars: number;
   name: string;
@@ -143,7 +143,7 @@ function buildFactorMap(factors: RawFactor[], skillByName: Map<string, RawSkill>
       });
 
     } else if (type === 6) {
-      map.set(id, { type: 'green', stars, name });
+      map.set(id, { type: 'passive', stars, name });
 
     } else if (type === 7) {
       map.set(id, { type: 'scenario', stars, name });

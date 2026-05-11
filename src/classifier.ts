@@ -197,7 +197,7 @@ function scoreBluesAndPinks(
   }
 }
 
-function scoreWhites(
+function scoreGreensAndWhites(
   factor_ids: number[],
   weight: number,
   source: 'own' | 'parent',
@@ -212,18 +212,20 @@ function scoreWhites(
   skillRelevance?: Map<number, number>
 ): void {
   const STYLE_MISMATCH = 0.0;
+  const UNIQUE_MULTIPLIER = 1.2;
 
   for (const fid of factor_ids) {
     const f = lookupFactor(fid);
-    if (!f || f.type !== 'white') continue;
+    if (!f || (f.type !== 'white' && f.type !== 'unique')) continue;
 
+    const uniqueMult = f.type === 'unique' ? UNIQUE_MULTIPLIER : 1.0;
     const pm = pinkMultiplier(f, pinkStars);
     const sb = specialBonus(fid, config);
     const rarityBonus = f.stars === 3 ? 1.2 : f.stars === 2 ? 0.8 : 0.6;
     const overlap = whiteOverlap.get(f.name) ?? 1;
     const overlapBonus = Math.pow(1.1, overlap - 1);
 
-    const weighted = f.stars * weight * pm * sb * rarityBonus * overlapBonus;
+    const weighted = f.stars * weight * pm * sb * rarityBonus * overlapBonus * uniqueMult;
 
     if (f.is_debuff) {
       debuffScore.value += f.stars * weight;
@@ -302,8 +304,8 @@ function scoreWhites(
 
     factors.push({
       factor_id: fid, name: f.name, stars: f.stars,
-      type: 'white', source,
-      category: 'white',
+      type: f.type, source,
+      category: f.type,
       contribution: weighted,
       pink_multiplier: pm, special_bonus: sb,
       style_mult: catStyleMult,
@@ -368,11 +370,11 @@ function scoreUma(
   }
 
   // Pass 3: score whites (needs dominant style)
-  scoreWhites(uma.factor_id_array, config.weights.own, 'own',
+  scoreGreensAndWhites(uma.factor_id_array, config.weights.own, 'own',
     scores, whiteTotal, debuffScore, pinkStars, whiteOverlap,
     factors, config, dominantStyle, skillRelevance);
   for (const p of directParents) {
-    scoreWhites(p.factor_id_array, config.weights.parent, 'parent',
+    scoreGreensAndWhites(p.factor_id_array, config.weights.parent, 'parent',
       scores, whiteTotal, debuffScore, pinkStars, whiteOverlap,
       factors, config, dominantStyle, skillRelevance);
   }
