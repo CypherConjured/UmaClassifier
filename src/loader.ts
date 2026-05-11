@@ -122,10 +122,10 @@ function buildFactorMap(factors: RawFactor[], skillByName: Map<string, RawSkill>
       const hintName = type === 5 ? extractHintName(description) : name;
       const skill = hintName ? skillByName.get(hintName) : undefined;
       const tags = skill ? skill.tagId.split('/') : [];
-      const isType10:boolean = 'Type10' == skill?.effects[0]?.type
-      let sc = '';
-      //for some reason, Focus/Concentration are listed as Debuff, fix by checking for Type10
-      if(isType10){sc = 'Focus'} else { sc = skill?.skillCategory ?? '' }
+      // Focus/Concentration skills are incorrectly tagged as Debuff in the source data.
+      // They're identified by effect type 'Type10' and need their category overridden.
+      const isFocusSkill: boolean = skill?.effects[0]?.type === 'Type10';
+      const skillCat = isFocusSkill ? 'Focus' : (skill?.skillCategory ?? '');
 
       map.set(id, {
         type: 'white',
@@ -135,8 +135,8 @@ function buildFactorMap(factors: RawFactor[], skillByName: Map<string, RawSkill>
         style_cats: tags.filter(t => t in STYLE_TAG).map(t => STYLE_TAG[t]),
         dist_cats:  tags.filter(t => t in DIST_TAG).map(t => DIST_TAG[t]),
         surf_cats:  tags.filter(t => t in SURF_TAG).map(t => SURF_TAG[t]),
-        is_debuff:  !isType10 && skill?.skillCategory === 'Debuff',
-        skill_category: sc ?? undefined,
+        is_debuff:  !isFocusSkill && skill?.skillCategory === 'Debuff',
+        skill_category: skillCat || undefined,
         is_last_spurt: skill
           ? skill.activationCondition.includes('is_lastspurt==1')
           : false,
