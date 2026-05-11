@@ -11,12 +11,12 @@ import type {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const GROUNDWORK_ID_BASE     = 2016001;
+const GROUNDWORK_ID_BASE = 2016001;
 const TAIL_HELD_HIGH_ID_BASE = 2016101;
 
-const APTITUDE_PINKS = new Set(['turf','dirt','sprint','mile','mid','long']);
-const STYLE_PINKS    = new Set(['front','pace','late','end']);
-const ALL_PINKS      = new Set([...APTITUDE_PINKS, ...STYLE_PINKS]);
+const APTITUDE_PINKS = new Set(['turf', 'dirt', 'sprint', 'mile', 'mid', 'long']);
+const STYLE_PINKS = new Set(['front', 'pace', 'late', 'end']);
+const ALL_PINKS = new Set([...APTITUDE_PINKS, ...STYLE_PINKS]);
 
 const ICON_CATEGORIES: Icon[] = [
   'dirt', 'sprint', 'mile', 'mid', 'long',
@@ -47,6 +47,40 @@ export function whiteToCategory(f: FactorEntry): string | null {
     case 'Debuff': return 'debuff';
     default: return null;
   }
+}
+
+function determineDominantStyle(
+  ownFactorIds: number[],
+  parentFactorIds: number[][]
+): string | null {
+  const ownTotals = new Map<string, number>();
+  const parentTotals = new Map<string, number>();
+
+  for (const fid of ownFactorIds) {
+    const f = lookupFactor(fid);
+    if (!f || f.type !== 'pink' || !f.category) continue;
+    if (!STYLE_PINKS.has(f.category)) continue;
+    ownTotals.set(f.category, (ownTotals.get(f.category) ?? 0) + f.stars);
+  }
+
+  if (ownTotals.size > 0) {
+    return [...ownTotals.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  }
+
+  for (const ids of parentFactorIds) {
+    for (const fid of ids) {
+      const f = lookupFactor(fid);
+      if (!f || f.type !== 'pink' || !f.category) continue;
+      if (!STYLE_PINKS.has(f.category)) continue;
+      parentTotals.set(f.category, (parentTotals.get(f.category) ?? 0) + f.stars);
+    }
+  }
+
+  if (parentTotals.size > 0) {
+    return [...parentTotals.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  }
+
+  return null;
 }
 
 // ─── Pink Multiplier ──────────────────────────────────────────────────────
@@ -81,7 +115,89 @@ function collectPinks(
 
 // ─── Factor scoring ────────────────────────────────────────────────────────────
 
-function scoreFactors(
+function scoreBluesAndPinks(
+  factor_ids: number[],
+  weight: number,
+  source: 'own' | 'parent',
+  scores: CategoryScores,
+  factors: FactorContribution[],
+  config: ClassifierConfig,
+  dominantStyle: string | null
+): void {
+  const BLUE_RARITY_OWN: Record<number, number> = { 3: 3.0, 2: 1.0, 1: -0.5 };
+  const PINK_RARITY_OWN: Record<number, number> = { 3: 3.0, 2: 1.0, 1: -0.5 };
+  const PINK_RARITY_PARENT: Record<number, number> = { 3: 1, 2: 0.6, 1: 0.2 };
+  const PARTIAL = 0.2;
+
+  for (const fid of factor_ids) {
+    const f = lookupFactor(fid);
+    if (!f) continue;
+
+    if (f.type === 'blue' && f.category) {
+      const rarityMult = source === 'own'
+        ? (BLUE_RARITY_OWN[f.stars] ?? 0)
+        : Math.max(f.stars * 0.5, 0);
+      const contribution = rarityMult * weight;
+
+      for (const icon of ICON_CATEGORIES) {
+        scores[icon] = (scores[icon] ?? 0) + contribution;
+      }
+
+      factors.push({
+        factor_id: fid, name: f.name, stars: f.stars,
+        type: 'blue', source, category: f.category, contribution,
+      });
+
+    } else if (f.type === 'pink' && f.category) {
+      if (APTITUDE_PINKS.has(f.category)) {
+        const rarityMult = source === 'own'
+          ? (PINK_RARITY_OWN[f.stars] ?? 0)
+          : (PINK_RARITY_PARENT[f.stars] ?? 0);
+
+        for (const icon of ICON_CATEGORIES) {
+          let mult = PARTIAL;
+          if (f.category === 'turf' && icon !== 'dirt') mult = 1.0;
+          else if (f.category === 'dirt' && icon === 'dirt') mult = 1.0;
+          else if (f.category === icon) mult = 1.0;
+
+          scores[icon] = (scores[icon] ?? 0) + rarityMult * weight * mult;
+        }
+
+        factors.push({
+          factor_id: fid, name: f.name, stars: f.stars,
+          type: 'pink', source, category: f.category,
+          contribution: rarityMult * weight,
+        });
+
+      } else if (STYLE_PINKS.has(f.category)) {
+        const isDominant = f.category === dominantStyle;
+        let contribution = 0;
+
+        if (isDominant) {
+          // Dominant style pink — same rarity gating as aptitude pinks
+          // Style applies wit bonus
+          const rarityMult = source === 'own'
+            ? (PINK_RARITY_OWN[f.stars] ?? 0)
+            : (PINK_RARITY_PARENT[f.stars] ?? 0);
+
+          contribution = rarityMult * weight;
+          for (const icon of ICON_CATEGORIES) {
+            scores[icon] = (scores[icon] ?? 0) + contribution;
+          }
+        }
+
+        factors.push({
+          factor_id: fid, name: f.name, stars: f.stars,
+          type: 'pink', source, category: f.category,
+          contribution,
+          secondary_category: isDominant ? 'dominant' : undefined,
+        });
+      }
+    }
+  }
+}
+
+function scoreWhites(
   factor_ids: number[],
   weight: number,
   source: 'own' | 'parent',
@@ -89,122 +205,118 @@ function scoreFactors(
   whiteTotal: { value: number },
   debuffScore: { value: number },
   pinkStars: Map<string, number>,
+  whiteOverlap: Map<string, number>,
   factors: FactorContribution[],
   config: ClassifierConfig,
-  whiteOverlap: Map<string, number>,
+  dominantStyle: string | null,
   skillRelevance?: Map<number, number>
 ): void {
+  const STYLE_MISMATCH = 0.0;
+
   for (const fid of factor_ids) {
     const f = lookupFactor(fid);
-    if (!f) continue;
+    if (!f || f.type !== 'white') continue;
 
-    if (f.type === 'blue' && f.category) {
-      const contribution = f.stars * weight;
-      scores[f.category] = (scores[f.category] ?? 0) + contribution;
-      factors.push({
-        factor_id: fid,
-        name: f.name,
-        stars: f.stars,
-        type: 'blue',
-        source,
-        category: f.category,
-        contribution,
-      });
+    const pm = pinkMultiplier(f, pinkStars);
+    const sb = specialBonus(fid, config);
+    const rarityBonus = f.stars === 3 ? 1.2 : f.stars === 2 ? 0.8 : 0.6;
+    const overlap = whiteOverlap.get(f.name) ?? 1;
+    const overlapBonus = Math.pow(1.1, overlap - 1);
 
-    } else if (f.type === 'pink' && f.category) {
-      if (APTITUDE_PINKS.has(f.category)) {
-        const contribution = f.stars * weight;
-        scores[f.category] = (scores[f.category] ?? 0) + contribution;
-        factors.push({
-          factor_id: fid,
-          name: f.name,
-          stars: f.stars,
-          type: 'pink',
-          source,
-          category: f.category,
-          contribution,
-        });
-      } else if (STYLE_PINKS.has(f.category)) {
-        // Style pinks — display only, no score contribution (wait what!? huh?)
-        // TODO actually score these probably? (unless I'm not understanding )
-        factors.push({
-          factor_id: fid,
-          name: f.name,
-          stars: f.stars,
-          type: 'pink',
-          source,
-          category: f.category,
-          contribution: 0,
-        });
-      }
+    const weighted = f.stars * weight * pm * sb * rarityBonus * overlapBonus;
 
-    } else if (f.type === 'white') {
-      const pm = pinkMultiplier(f, pinkStars);
-      const sb = specialBonus(fid, config);
-      const cat = whiteToCategory(f);
+    if (f.is_debuff) {
+      debuffScore.value += f.stars * weight;
+    } else {
+      whiteTotal.value += weighted;
+    }
 
-      // Rarity bonus: 3★ whites signal a good run, 1★ are common
-      const rarityBonus = f.stars === 3 ? 1.3 : f.stars === 2 ? 1.0 : 0.8;
-
-      // Lineage overlap bonus: exponential per the guide (×1.1^N)
-      const overlap = whiteOverlap.get(f.name) ?? 1;
-      const overlapBonus = Math.pow(1.1, overlap - 1); // -1 so single instance = 1.0x
-
-      const weighted = f.stars * weight * pm * sb * rarityBonus * overlapBonus;
-      const display = f.stars * pm * sb * rarityBonus * overlapBonus;
-
-
-      if (cat === 'debuff') {
-        debuffScore.value += f.stars * weight;
-      } else {
-        whiteTotal.value += weighted; 
-      }
-
-      let contribution = 0;
-
-      // Display-only skill type scores (don't drive icon assignment)
-      if (f.skill_category) {
-        const typeKey = f.is_last_spurt         ? 'spurt'
-          : f.skill_category === 'Speed Boost'  ? 'tSpd'
+    // Display-only type scores
+    if (f.skill_category) {
+      const typeKey = f.is_last_spurt ? 'spurt'
+        : f.skill_category === 'Speed Boost' ? 'tSpd'
           : f.skill_category === 'Acceleration' ? 'accel'
           : f.skill_category === 'Recovery'     ? 'hp'
           : f.skill_category === 'Lane Effect'  ? 'nav'
           : f.skill_category === 'Vision'       ? 'nav'
           : null;
-        if (typeKey) {
-          scores[typeKey] = (scores[typeKey] ?? 0) + weighted;
+      if (typeKey) scores[typeKey] = (scores[typeKey] ?? 0) + weighted;
+    }
+
+    // Stat boost (type 5 hybrid)
+    let statBoostContribution: number | undefined;
+    if (f.stat_boost) {
+      statBoostContribution = weighted * config.whiteStatBoostMultiplier;
+      scores[f.stat_boost] = (scores[f.stat_boost] ?? 0) + statBoostContribution;
+    }
+
+    // Per-category white contribution
+    const hasDist = (f.dist_cats ?? []).length > 0;
+    const hasSurf = (f.surf_cats ?? []).length > 0;
+    const hasStyle = (f.style_cats ?? []).length > 0;
+    const isGeneric = !hasDist && !hasSurf && !hasStyle;
+
+    // Compute style multiplier once
+    let catStyleMult = 1.0;
+    if (hasStyle) {
+      const styleMatch = dominantStyle && (f.style_cats ?? []).includes(dominantStyle);
+      catStyleMult = styleMatch ? 1.0 : 0.0;
+    }
+
+    for (const icon of ICON_CATEGORIES) {
+      let catMult = 0;
+
+      if (isGeneric) {
+        catMult = 1.0; // generic skills are universally useful
+      } else {
+        // Distance match
+        if (hasDist) {
+          const distMatch = icon !== 'dirt' && (f.dist_cats ?? []).includes(icon);
+          const dirtMatch = icon === 'dirt' && (f.dist_cats ?? []).includes('mile');
+          catMult = (distMatch || dirtMatch) ? 1.0 : 0;
+        }
+
+        // Surface match (only if no distance tag, or in addition)
+        if (hasSurf && catMult === 0) {
+          const surfMatch = icon === 'dirt'
+            ? (f.surf_cats ?? []).includes('dirt')
+            : (f.surf_cats ?? []).includes('turf');
+          catMult = surfMatch ? 1.0 : 0;
+        }
+
+        // Style modifier on top of any existing mult
+        if (hasStyle && catMult > 0) {
+          const styleMatch = dominantStyle && (f.style_cats ?? []).includes(dominantStyle);
+          if (!styleMatch) catMult *= STYLE_MISMATCH;
+        } else if (hasStyle && !hasDist && !hasSurf) {
+          // Style-only tag
+          const styleMatch = dominantStyle && (f.style_cats ?? []).includes(dominantStyle);
+          catMult = styleMatch ? 1.0 : STYLE_MISMATCH;
         }
       }
 
-
-      let statBoostContribution: number | undefined;
-      if (f.stat_boost) {
-        statBoostContribution = weighted * config.whiteStatBoostMultiplier;
-        scores[f.stat_boost] = (scores[f.stat_boost] ?? 0) + statBoostContribution;
+      if (catMult > 0) {
+        scores[icon] = (scores[icon] ?? 0) + weighted * catMult;
       }
-
-      factors.push({
-        factor_id: fid,
-        name: f.name,
-        stars: f.stars,
-        type: 'white',
-        source,
-        category: cat ?? 'none',
-        contribution,
-        pink_multiplier: pm,
-        special_bonus: sb,
-        stat_boost: f.stat_boost ?? undefined,
-        stat_boost_contribution: statBoostContribution,
-        final_value: display,
-        dist_cats: f.dist_cats ?? [],
-        style_cats: f.style_cats ?? [],
-        surf_cats: f.surf_cats ?? [],
-        is_debuff: f.is_debuff ?? false,
-        skill_category: f.skill_category,
-        is_last_spurt: f.is_last_spurt ?? false,
-        relevance: skillRelevance?.get(fid),
-      });
     }
+
+    factors.push({
+      factor_id: fid, name: f.name, stars: f.stars,
+      type: 'white', source,
+      category: 'white',
+      contribution: weighted,
+      pink_multiplier: pm, special_bonus: sb,
+      style_mult: catStyleMult,
+      stat_boost: f.stat_boost ?? undefined,
+      stat_boost_contribution: statBoostContribution,
+      dist_cats: f.dist_cats ?? [],
+      style_cats: f.style_cats ?? [],
+      surf_cats: f.surf_cats ?? [],
+      is_debuff: f.is_debuff ?? false,
+      skill_category: f.skill_category,
+      is_last_spurt: f.is_last_spurt ?? false,
+      relevance: skillRelevance?.get(fid),
+    });
   }
 }
 
@@ -216,20 +328,25 @@ function scoreUma(
   skillRelevance?: Map<number, number>
 ): ScoredUma {
   const scores: CategoryScores = {};
-  const whiteTotal  = { value: 0 };
+  const whiteTotal = { value: 0 };
   const debuffScore = { value: 0 };
-  const pinkStars   = new Map<string, number>();
+  const pinkStars = new Map<string, number>();
   const factors: FactorContribution[] = [];
 
   const directParents = uma.succession_chara_array.filter(
     p => isDirectParent(p.position_id)
   );
 
-  // Pass 1: collect pink stars for multiplier calculation
+  const dominantStyle = determineDominantStyle(
+    uma.factor_id_array,
+    directParents.map(p => p.factor_id_array)
+  );
+
+  // Pass 1: collect pink stars for white multiplier calculation
   collectPinks(uma.factor_id_array, pinkStars);
   for (const p of directParents) collectPinks(p.factor_id_array, pinkStars);
 
-  // Pre-build white overlap counts for lineage bonus
+  // Pre-build white overlap counts
   const whiteOverlap = new Map<string, number>();
   const allFactorIds = [
     ...uma.factor_id_array,
@@ -242,42 +359,31 @@ function scoreUma(
     }
   }
 
-  // Pass 2: score everything
-  scoreFactors(uma.factor_id_array, config.weights.own, 'own',
-    scores, whiteTotal, debuffScore, pinkStars, factors, config, whiteOverlap, skillRelevance);
-
+  // Pass 2: score blues and pinks
+  scoreBluesAndPinks(uma.factor_id_array, config.weights.own, 'own',
+    scores, factors, config, dominantStyle);
   for (const p of directParents) {
-    scoreFactors(p.factor_id_array, config.weights.parent, 'parent',
-      scores, whiteTotal, debuffScore, pinkStars, factors, config, whiteOverlap, skillRelevance);
+    scoreBluesAndPinks(p.factor_id_array, config.weights.parent, 'parent',
+      scores, factors, config, dominantStyle);
   }
 
-  // Dominant style: highest star-count style pink across own + parents
-  const styleTotals = new Map<string, number>();
-  for (const f of factors) {
-    if (f.type === 'pink' && STYLE_PINKS.has(f.category)) {
-      styleTotals.set(f.category, (styleTotals.get(f.category) ?? 0) + f.stars);
-    }
-  }
-  if (styleTotals.size > 0) {
-    const [dominantStyle, styleScore] = [...styleTotals.entries()]
-      .sort((a, b) => b[1] - a[1])[0];
-    scores[`style:${dominantStyle}`] = styleScore;
+  // Pass 3: score whites (needs dominant style)
+  scoreWhites(uma.factor_id_array, config.weights.own, 'own',
+    scores, whiteTotal, debuffScore, pinkStars, whiteOverlap,
+    factors, config, dominantStyle, skillRelevance);
+  for (const p of directParents) {
+    scoreWhites(p.factor_id_array, config.weights.parent, 'parent',
+      scores, whiteTotal, debuffScore, pinkStars, whiteOverlap,
+      factors, config, dominantStyle, skillRelevance);
   }
 
-  // Build category_factors map for UI breakdown
+  // Build category_factors map
   const category_factors: Record<string, FactorContribution[]> = {};
   for (const f of factors) {
-    // Primary category
     if (f.contribution > 0) {
       if (!category_factors[f.category]) category_factors[f.category] = [];
       category_factors[f.category].push(f);
     }
-    // Secondary category (pinks)
-    if (f.secondary_contribution && f.secondary_category) {
-      if (!category_factors[f.secondary_category]) category_factors[f.secondary_category] = [];
-      category_factors[f.secondary_category].push(f);
-    }
-    // Stat boost (type 5 whites)
     if (f.stat_boost_contribution && f.stat_boost) {
       if (!category_factors[f.stat_boost]) category_factors[f.stat_boost] = [];
       category_factors[f.stat_boost].push(f);
@@ -295,19 +401,15 @@ function scoreUma(
     race_score: 0,
     factors,
     category_factors,
-    assigned_icon: null
+    assigned_icon: null,
   };
 }
-
 // ─── Overall Score for Transfer Candidates ──────────────────────────────────────────────────────────
 
 function overallScore(uma: ScoredUma): number {
-  const blueScore = ['speed', 'stamina', 'power', 'guts', 'wit']
+  const distScore = ICON_CATEGORIES
     .reduce((sum, cat) => sum + (uma.scores[cat] ?? 0), 0);
-  const pinkScore = ['turf', 'dirt', 'sprint', 'mile', 'mid', 'long']
-    .reduce((sum, cat) => sum + (uma.scores[cat] ?? 0), 0);
-  const whiteScore = uma.white_total;
-  return (blueScore * 0.6) + (pinkScore * 0.8) + (whiteScore * 1.5);
+  return distScore + uma.white_total * 1.5;
 }
 
 // ─── Heart assignment ──────────────────────────────────────────────────────────
@@ -332,7 +434,7 @@ function assignHearts(
     const umaSkills = new Map<string, number>();
     for (const f of uma.factors) {
       if (f.type !== 'white') continue;
-      const val = f.final_value ?? 0;
+      const val = f.contribution ?? 0;
       const existing = umaSkills.get(f.name) ?? 0;
       if (val > existing) umaSkills.set(f.name, val);
     }
@@ -374,7 +476,7 @@ export function classifyRoster(
     for (const uma of scored) {
       uma.race_score = uma.factors
         .filter(f => f.type === 'white')
-        .reduce((sum, f) => sum + (f.final_value ?? 0) * (f.relevance ?? 0), 0);
+        .reduce((sum, f) => sum + (f.contribution ?? 0) * (f.relevance ?? 0), 0);
     }
   }
 
@@ -387,19 +489,58 @@ export function classifyRoster(
     .slice(0, config.keepPerCategory);
   for (const uma of debuffCandidates) assigned.set(uma.trained_chara_id, 'clubs');
 
-  // Top-N per icon category
-  for (const icon of ICON_CATEGORIES) {
-    const candidates = scored
-      .filter(u => (u.scores[icon] ?? 0) >= minCategoryScore)
-      .sort((a, b) => (b.scores[icon] ?? 0) - (a.scores[icon] ?? 0));
+  // Build preference lists for each uma (categories sorted by score descending)
+  const preferences = new Map<number, Icon[]>();
+  for (const uma of scored) {
+    const ranked = ICON_CATEGORIES
+      .filter(icon => (uma.scores[icon] ?? 0) >= minCategoryScore)
+      .sort((a, b) => (uma.scores[b] ?? 0) - (uma.scores[a] ?? 0));
+    preferences.set(uma.trained_chara_id, ranked);
+  }
 
-    let filled = 0;
-    for (const uma of candidates) {
-      if (filled >= keepPerCategory) break;
-      if (!assigned.has(uma.trained_chara_id)) {
-        assigned.set(uma.trained_chara_id, icon);
-        filled++;
+  // Track how many slots are filled per category
+  const slotsFilled = new Map<Icon, number>();
+  for (const icon of ICON_CATEGORIES) slotsFilled.set(icon, 0);
+
+  // Iterative rounds — each uma tries their next preferred category
+  const prefIndex = new Map<number, number>(); // uma id → current preference index
+  for (const uma of scored) prefIndex.set(uma.trained_chara_id, 0);
+
+  let progress = true;
+  while (progress) {
+    progress = false;
+
+    // Sort unassigned umas by their score in their current preferred category
+    // so the best candidates win each slot
+    const unassigned = scored
+      .filter(u => !assigned.has(u.trained_chara_id))
+      .sort((a, b) => {
+        const aPref = preferences.get(a.trained_chara_id) ?? [];
+        const bPref = preferences.get(b.trained_chara_id) ?? [];
+        const aIcon = aPref[prefIndex.get(a.trained_chara_id) ?? 0];
+        const bIcon = bPref[prefIndex.get(b.trained_chara_id) ?? 0];
+        const aScore = aIcon ? (a.scores[aIcon] ?? 0) : 0;
+        const bScore = bIcon ? (b.scores[bIcon] ?? 0) : 0;
+        return bScore - aScore;
+      });
+
+    for (const uma of unassigned) {
+      const prefs = preferences.get(uma.trained_chara_id) ?? [];
+      const idx = prefIndex.get(uma.trained_chara_id) ?? 0;
+
+      // Advance past full categories
+      let i = idx;
+      while (i < prefs.length && (slotsFilled.get(prefs[i]) ?? 0) >= keepPerCategory) {
+        i++;
       }
+      prefIndex.set(uma.trained_chara_id, i);
+
+      if (i >= prefs.length) continue; // no more preferred categories
+
+      const icon = prefs[i];
+      assigned.set(uma.trained_chara_id, icon);
+      slotsFilled.set(icon, (slotsFilled.get(icon) ?? 0) + 1);
+      progress = true;
     }
   }
 

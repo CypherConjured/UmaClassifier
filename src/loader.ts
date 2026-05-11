@@ -103,8 +103,21 @@ function buildFactorMap(factors: RawFactor[], skillByName: Map<string, RawSkill>
       map.set(id, { type: 'pink', category, stars, name });
 
     } else if (type === 3) {
-      map.set(id, { type: 'unique', stars, name });
-
+      const skill = skillByName.get(name);
+      const tags = skill ? skill.tagId.split('/') : [];
+      map.set(id, {
+        type: 'unique',
+        stars,
+        name,
+        style_cats: tags.filter(t => t in STYLE_TAG).map(t => STYLE_TAG[t]),
+        dist_cats:  tags.filter(t => t in DIST_TAG).map(t => DIST_TAG[t]),
+        surf_cats:  tags.filter(t => t in SURF_TAG).map(t => SURF_TAG[t]),
+        skill_category: skill?.skillCategory ?? undefined,
+        is_last_spurt: skill
+          ? skill.activationCondition.includes('is_lastspurt==1')
+          : false,
+        is_debuff: skill?.skillCategory === 'Debuff',
+      });
     } else if (type === 4 || type === 5) {
       const hintName = type === 5 ? extractHintName(description) : name;
       const skill = hintName ? skillByName.get(hintName) : undefined;

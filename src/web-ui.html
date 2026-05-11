@@ -750,8 +750,8 @@
                 return;
             }
 
-            // Sort by final_value descending
-            whites.sort((a, b) => b.final_value - a.final_value);
+            // Sort by contribution descending
+            whites.sort((a, b) => b.contribution - a.contribution);
 
             const rows = whites.map(w => {
                 const tags = [
@@ -771,7 +771,7 @@
                     <td>${w.name}${tags ? '<br>' + tags : ''}</td>
                     <td style="color:#aaa">${pm}</td>
                     <td style="color:#aaa">${sb}</td>
-                    <td style="font-weight:600">${w.final_value.toFixed(2)}</td>
+                    <td style="font-weight:600">${w.contribution.toFixed(2)}</td>
                 </tr>`;
             }).join('');
 

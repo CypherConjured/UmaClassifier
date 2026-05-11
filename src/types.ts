@@ -44,14 +44,6 @@ export interface RawUma {
   proper_running_style_oikomi: number;
 }
 
-// ─── Decoded factor ────────────────────────────────────────────────────────────
-
-export type BlueCategory = 'speed' | 'stamina' | 'power' | 'guts' | 'wit';
-export type PinkCategory = 'turf' | 'dirt' | 'sprint' | 'mile' | 'mid' | 'long';
-export type StyleCategory = 'front' | 'pace' | 'late' | 'end';
-export type WhiteCategory = 'white';
-export type UniqueCategory = 'unique';
-
 // ─── Icon / favorite mark ─────────────────────────────────────────────────────
 
 export type Icon = 'skip'
@@ -70,7 +62,7 @@ export interface FactorContribution {
   factor_id: number;
   name: string;
   stars: number;
-  type: 'blue' | 'pink' | 'white';
+  type: 'blue' | 'pink' | 'white' | 'unique';
   source: 'own' | 'parent';
   category: string;
   secondary_category?: string;
@@ -79,10 +71,10 @@ export interface FactorContribution {
 
   // White-specific
   pink_multiplier?: number;
+  style_mult?: number;
   special_bonus?: number;
   stat_boost?: string;
   stat_boost_contribution?: number;
-  final_value?: number;
   dist_cats?: string[];
   style_cats?: string[];
   surf_cats?: string[];
@@ -148,7 +140,7 @@ export interface ClassifierConfig {
 }
 
 export const DEFAULT_CONFIG: ClassifierConfig = {
-  keepPerCategory: 10,
+  keepPerCategory: 6,
   keepAce: 10,
   keepHeart: 10,
   numTrash: 20,
@@ -156,12 +148,12 @@ export const DEFAULT_CONFIG: ClassifierConfig = {
   heartWhiteThreshold: 10,
   aceScoreThreshold: 12000,
   weights: {
-    own: 1,
-    parent: 0.6,
+    own: 1.0,
+    parent: 0.4,
   },
   skillBonuses: {
     2016001: 1.5,  // Groundwork (no front runner pinks)
     2016101: 1.5,  // Tail Held High
   },
-  whiteStatBoostMultiplier: 0.5,
+  whiteStatBoostMultiplier: 2.0,
 };
