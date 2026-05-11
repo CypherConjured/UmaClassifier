@@ -158,7 +158,7 @@ function buildFactorMap(factors: RawFactor[], skillByName: Map<string, RawSkill>
 let _factorMap: Map<number, FactorEntry> | null = null;
 let _charMap: Map<number, string> | null = null;
 
-export function getFactorMap(): Map<number, FactorEntry> {
+function getFactorMap(): Map<number, FactorEntry> {
   if (_factorMap) return _factorMap;
 
   const factors: RawFactor[] = JSON.parse(
@@ -174,7 +174,7 @@ export function getFactorMap(): Map<number, FactorEntry> {
   return _factorMap;
 }
 
-export function getCharMap(): Map<number, string> {
+function getCharMap(): Map<number, string> {
   if (_charMap) return _charMap;
 
   const raw: Array<{ cardId: number; charaName: string }> = JSON.parse(
@@ -203,22 +203,11 @@ export interface RaceEntry {
   ground: number;
 }
 
-interface RawRace {
-  raceId: number;
-  raceName: string;
-  grade: number;
-  distanceCategory: string;
-  groundName: string;
-  trackName: string;
-  trackId: number;
-  ground: number;
-}
-
 let _raceMap: Map<number, RaceEntry> | null = null;
 
 export function getRaceMap(): Map<number, RaceEntry> {
   if (_raceMap) return _raceMap;
-  const raw: RawRace[] = JSON.parse(
+  const raw: RaceEntry[] = JSON.parse(
     readFileSync(join(ASSETS, 'TerumiRaceData.json'), 'utf-8')
   );
   _raceMap = new Map(raw.map(r => [r.raceId, r]));

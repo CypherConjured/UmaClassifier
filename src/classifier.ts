@@ -11,9 +11,6 @@ import type {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const GROUNDWORK_ID_BASE = 2016001;
-const TAIL_HELD_HIGH_ID_BASE = 2016101;
-
 const APTITUDE_PINKS = new Set(['turf', 'dirt', 'sprint', 'mile', 'mid', 'long']);
 const STYLE_PINKS = new Set(['front', 'pace', 'late', 'end']);
 const ALL_PINKS = new Set([...APTITUDE_PINKS, ...STYLE_PINKS]);
@@ -34,19 +31,6 @@ function specialBonus(
 ): number {
   const base = Math.floor(factor_id / 10) * 10 + 1;
   return config.skillBonuses[base] ?? 1.0;
-}
-
-export function whiteToCategory(f: FactorEntry): string | null {
-  if (f.is_debuff) return 'debuff';
-  switch (f.skill_category) {
-    case 'Speed Boost': return f.is_last_spurt ? 'guts' : 'speed';
-    case 'Acceleration': return 'power';
-    case 'Recovery': return 'stamina';
-    case 'Lane Effect':
-    case 'Vision': return 'wit';
-    case 'Debuff': return 'debuff';
-    default: return null;
-  }
 }
 
 function determineDominantStyle(

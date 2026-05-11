@@ -67,7 +67,6 @@ export interface FactorContribution {
   category: string;
   secondary_category?: string;
   contribution: number;
-  secondary_contribution?: number;
 
   // White-specific
   pink_multiplier?: number;
