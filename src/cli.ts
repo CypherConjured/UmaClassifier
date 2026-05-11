@@ -111,8 +111,8 @@ function allScores(uma: ScoredUma): string {
   for (const [k, v] of Object.entries(uma.scores).sort((a, b) => b[1] - a[1])) {
     if (v <= 0) continue;
     const val = v.toFixed(1);
-    if (k.startsWith('style:')) {
-      style = k.replace('style:', '') + ':' + val;
+    if (STYLE_PINKS_DISPLAY.has(k)) {
+      style = `${k}:${val}`;
     } else if (['dirt','sprint','mile','mid','long'].includes(k)) {
       dist.push(`${k}:${val}`);
     } else if (['tSpd','spurt','accel','hp','nav'].includes(k)) {
@@ -120,10 +120,8 @@ function allScores(uma: ScoredUma): string {
     }
   }
 
-  style = style + (style ? ' ' : '');
-
   const parts: string[] = [];
-  if (style)         parts.push(`${c(C.red, style.trim())}`);
+  if (style)         parts.push(c(C.red, style));
   if (dist.length)   parts.push(`${c(C.magenta, dist.slice(0,2).join(' '))}`);
   if (whites.length) parts.push(`${c(C.yellow, whites.join(' '))}`);
   return parts.join('  ');

@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classifyRoster, } from './classifier.ts';
+import { classifyRoster } from './classifier.ts';
 import { buildSkillRelevanceMap, getRaceMap, lookupCharName } from './loader.ts';
 import { DEFAULT_CONFIG, RaceEnvironment } from './types.ts';
 
