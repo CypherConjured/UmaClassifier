@@ -280,7 +280,7 @@ function printTable(
             const pm  = (w.pink_multiplier ?? 1) > 1
               ? `pink:${w.pink_multiplier!.toFixed(2)}x` : '----------';
             const sb  = (w.special_bonus ?? 1) > 1
-              ? `bon:${w.special_bonus!.toFixed(1)}x` : '---------';
+              ? `bonus:${w.special_bonus!.toFixed(1)}x` : '----------';
             const val = `→ ${w.contribution.toFixed(2)}`;
             console.log(`       ${src} ${catTag} ${stars} ${name} ${tags} ${pm} ${sb} ${val}`);
           }

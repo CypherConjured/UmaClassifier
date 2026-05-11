@@ -102,12 +102,11 @@ function collectPinks(
 
 // ─── Factor scoring ────────────────────────────────────────────────────────────
 
-// Blues score equally across all distance categories (stat boosts help everywhere).
-// Aptitude pinks score fully for their matching category and partially (PARTIAL_MULT)
-// for all others — a turf uma is still somewhat useful on dirt, just not as much.
+// Blues have a multiplier depending on how useful they are for the category. (TODO: to be tuned)
+// Aptitude pinks score fully for their matching category only. (PARTIAL_MULT is 0 for now)
 // Dirt is treated as a distance category here; turf maps to all non-dirt distances.
-// Style pinks only score if the uma's dominant running style matches — non-dominant
-// style pinks are tracked for display but contribute 0.
+// Style pinks only score if the uma's dominant running style matches
+// Non-dominant style pinks are tracked for display but contribute 0.
 function scoreBluesAndPinks(
   factor_ids: number[],
   weight: number,
@@ -120,7 +119,7 @@ function scoreBluesAndPinks(
   const BLUE_RARITY_OWN: Record<number, number>   = { 3: 3.0, 2: 1.0, 1: -0.5 };
   const PINK_RARITY_OWN: Record<number, number>   = { 3: 3.0, 2: 1.0, 1: -0.5 };
   const PINK_RARITY_PARENT: Record<number, number> = { 3: 1.0, 2: 0.6, 1: 0.2 };
-  const PARTIAL_MULT = 0.2; // partial credit for off-category aptitude pinks
+  const PARTIAL_MULT = 0.0; // partial credit for off-category aptitude pinks
 
   for (const fid of factor_ids) {
     const f = lookupFactor(fid);
@@ -130,9 +129,33 @@ function scoreBluesAndPinks(
       const rarityMult = source === 'own'
         ? (BLUE_RARITY_OWN[f.stars] ?? 0)
         : Math.max(f.stars * 0.5, 0);
-      const contribution = rarityMult * weight;
+      let contribution = rarityMult * weight;
 
       for (const icon of ICON_CATEGORIES) {
+        //TODO we need some bonuses for different distances. Stamina in particular.
+        let attrRelevanceMulti = 1.0;
+        switch (icon) {
+          case 'dirt':
+            if(f.category === 'power') attrRelevanceMulti = 1.2;
+            break;
+          case 'sprint':
+            if(f.category === 'speed') attrRelevanceMulti = 1.5;
+            else if(f.category === 'stamina') attrRelevanceMulti = 0.8;
+            break;
+          case 'mile':
+            // if(f.category === 'stamina') attrRelevanceMulti = 1.0;
+            break;
+          case 'mid':
+            if(f.category === 'stamina') attrRelevanceMulti = 1.2;
+            break;
+          case 'long':
+            if(f.category === 'stamina') attrRelevanceMulti = 1.5;
+            else attrRelevanceMulti = 0.9;
+            break;
+          default:
+            break;
+        }
+        contribution *= attrRelevanceMulti;
         scores[icon] = (scores[icon] ?? 0) + contribution;
       }
 
