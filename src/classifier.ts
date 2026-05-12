@@ -204,10 +204,10 @@ function scoreBluesAndPinks(
   config: ClassifierConfig,
   dominantStyle: string | null
 ): void {
-  const BLUE_RARITY_OWN: Record<number, number>    = { 3: 3.0, 2: 1.0, 1: -0.5 };
-  const BLUE_RARITY_PARENT: Record<number, number> = { 3: 1.0, 2: 0.5, 1: 0.0 };
-  const PINK_RARITY_OWN: Record<number, number>    = { 3: 3.0, 2: 1.0, 1: -0.5 };
-  const PINK_RARITY_PARENT: Record<number, number> = { 3: 1.0, 2: 0.5, 1: 0.0 };
+  const BLUE_RARITY_OWN: Record<number, number>    = { 3: 4.0, 2: 1.0, 1: -0.5 };
+  const BLUE_RARITY_PARENT: Record<number, number> = { 3: 1.5, 2: 0.6, 1: 0.1 };
+  const PINK_RARITY_OWN: Record<number, number>    = { 3: 4.0, 2: 1.0, 1: -0.5 };
+  const PINK_RARITY_PARENT: Record<number, number> = { 3: 1.5, 2: 0.6, 1: 0.1 };
   const PARTIAL_MULT = 0.0; // partial credit for off-category aptitude pinks
 
   for (const fid of factor_ids) {
@@ -275,6 +275,15 @@ function scoreGreensAndWhites(
     const f = lookupFactor(fid);
     if (!f || (f.type !== 'white' && f.type !== 'unique')) continue;
 
+    const hasDist   = (f.dist_cats  ?? []).length > 0;
+    const hasSurf   = (f.surf_cats  ?? []).length > 0;
+    const hasStyle  = (f.style_cats ?? []).length > 0;
+    const isGeneric = !hasDist && !hasSurf && !hasStyle;
+
+    // Style gate: skills tagged for a non-dominant style contribute nothing.
+    const styleGateOpen = !hasStyle || (dominantStyle != null && (f.style_cats ?? []).includes(dominantStyle));
+    const catStyleMult  = styleGateOpen ? 1.0 : STYLE_MISMATCH;
+
     const uniqueMult   = f.type === 'unique' ? UNIQUE_MULTIPLIER : 1.0;
     const pinkMult     = pinkMultiplier(f, pinkStars);
     const specialMult  = specialBonus(fid, config);
@@ -286,7 +295,8 @@ function scoreGreensAndWhites(
     if (f.is_debuff) {
       debuffScore.value += f.stars * weight;
     } else {
-      whiteTotal.value += baseContrib;
+      const statBoostMult = f.stat_boost ? config.whiteStatBoostMultiplier : 1.0;
+      whiteTotal.value += baseContrib * statBoostMult * catStyleMult;
     }
 
     // Skill-type subscores for breakdown display
@@ -306,14 +316,6 @@ function scoreGreensAndWhites(
       statBoostContribution = baseContrib * config.whiteStatBoostMultiplier;
       scores[f.stat_boost] = (scores[f.stat_boost] ?? 0) + statBoostContribution;
     }
-
-    const hasDist   = (f.dist_cats  ?? []).length > 0;
-    const hasSurf   = (f.surf_cats  ?? []).length > 0;
-    const hasStyle  = (f.style_cats ?? []).length > 0;
-    const isGeneric = !hasDist && !hasSurf && !hasStyle;
-
-    const styleGateOpen = !hasStyle || (dominantStyle != null && (f.style_cats ?? []).includes(dominantStyle));
-    const catStyleMult  = styleGateOpen ? 1.0 : STYLE_MISMATCH;
 
     for (const icon of ICON_CATEGORIES) {
       let catMult = 0;
@@ -390,25 +392,23 @@ function scoreUma(
   const factors: FactorContribution[] = [];
 
   const directParents = uma.succession_chara_array.filter(p => isDirectParent(p.position_id));
-  const dominantStyle = determineDominantStyle(uma.factor_id_array, directParents.map(p => p.factor_id_array));
 
   // ── Archetype pipeline ────────────────────────────────────────────────────────
   // Compute a unit vector for own factors, then add scaled parent vectors.
-  const lineageVector: ArchetypeVector = {
-    surface:  { ...computeUnitVector(uma.factor_id_array).surface },
-    distance: { ...computeUnitVector(uma.factor_id_array).distance },
-    style:    { ...computeUnitVector(uma.factor_id_array).style },
-  };
-  // Re-compute own vector cleanly to avoid double-read
   const ownVec = computeUnitVector(uma.factor_id_array);
-  lineageVector.surface  = { ...ownVec.surface  };
-  lineageVector.distance = { ...ownVec.distance };
-  lineageVector.style    = { ...ownVec.style    };
+  const lineageVector: ArchetypeVector = {
+    surface:  { ...ownVec.surface  },
+    distance: { ...ownVec.distance },
+    style:    { ...ownVec.style    },
+  };
 
   for (const parent of directParents) {
     addVector(lineageVector, scaleVector(computeUnitVector(parent.factor_id_array), config.weights.parent));
   }
   const archetype_label = determineArchetypeLabel(lineageVector);
+
+  // Style gate uses the archetype's dominant style so it aligns with classification.
+  const dominantStyle = archetype_label.style !== 'Any' ? archetype_label.style : null;
 
   // ── Quality pipeline ──────────────────────────────────────────────────────────
   // Pass 1: collect pink stars (white multiplier) and white overlap counts
@@ -519,7 +519,7 @@ export function classifyRoster(
   config: ClassifierConfig,
   skillRelevance?: Map<number, number>
 ): ScoredUma[] {
-  const { keepPerCategory, aceScoreThreshold } = config;
+  const { keepPerArchetype, maxPerIcon, aceScoreThreshold } = config;
 
   const scored = umas.map(uma => scoreUma(uma, config, skillRelevance));
 
@@ -534,15 +534,16 @@ export function classifyRoster(
 
   const assigned = new Map<number, Icon>();
 
-  // Clubs first
+  // Clubs first — capped at maxPerIcon
   const debuffCandidates = scored
     .filter(u => u.debuff_score > 0)
     .sort((a, b) => b.debuff_score - a.debuff_score)
-    .slice(0, keepPerCategory);
+    .slice(0, maxPerIcon);
   for (const uma of debuffCandidates) assigned.set(uma.trained_chara_id, 'clubs');
 
-  // Group unassigned umas by archetype label; rank each group by quality_score;
-  // cap at keepPerCategory and assign the icon derived from the archetype.
+  // Group unassigned umas by archetype label, sort by quality_score.
+  // Within each icon, process the best archetype groups first (by their group leader's score)
+  // so the maxPerIcon cap keeps the highest-quality umas.
   const archetypeGroups = new Map<string, ScoredUma[]>();
   for (const uma of scored) {
     if (assigned.has(uma.trained_chara_id)) continue;
@@ -553,11 +554,23 @@ export function classifyRoster(
 
   for (const [, group] of archetypeGroups) {
     group.sort((a, b) => b.quality_score - a.quality_score);
+  }
+
+  // Sort archetype groups by their best uma's quality_score so the icon cap
+  // favors the strongest archetypes when multiple compete for the same icon.
+  const sortedGroups = [...archetypeGroups.values()]
+    .sort((a, b) => b[0].quality_score - a[0].quality_score);
+
+  const iconCounts = new Map<Icon, number>();
+  for (const group of sortedGroups) {
     const icon = archetypeToIcon(group[0].archetype_label);
     if (!icon) continue; // turf with no distance signal — falls through to ace/skip
-    for (let i = 0; i < Math.min(keepPerCategory, group.length); i++) {
+    const already = iconCounts.get(icon) ?? 0;
+    const slots = Math.min(keepPerArchetype, group.length, maxPerIcon - already);
+    for (let i = 0; i < slots; i++) {
       assigned.set(group[i].trained_chara_id, icon);
     }
+    iconCounts.set(icon, already + slots);
   }
 
   // Hearts

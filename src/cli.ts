@@ -65,17 +65,18 @@ function parseArgs() {
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
-      case '--help':       jsonPath = ''; break;
-      case '--keep':       config.keepPerCategory     = parseSingleArg(args, i++, 'int',   '--keep {N}          Keep top N umas per category (default: ' + DEFAULT_CONFIG.keepPerCategory + ')'); break;
-      case '--min-score':  config.minCategoryScore    = parseSingleArg(args, i++, 'float', '--min-score {N}     Minimum score to qualify for a category (default: ' + DEFAULT_CONFIG.minCategoryScore + ')'); break;
-      case '--heart':      config.heartWhiteThreshold = parseSingleArg(args, i++, 'float', '--heart {N}         Minimum white total for heart consideration (default: ' + DEFAULT_CONFIG.heartWhiteThreshold + ')'); break;
-      case '--ace':        config.aceScoreThreshold   = parseSingleArg(args, i++, 'int',   '--ace {N}           Minimum rank score for ace fallback (default: ' + DEFAULT_CONFIG.aceScoreThreshold + ')'); break;
-      case '--keep-ace':   config.keepAce             = parseSingleArg(args, i++, 'int',   '--keep-ace {N}      Max umas to assign ace icon (default: ' + DEFAULT_CONFIG.keepAce + ')'); break;
-      case '--keep-heart': config.keepHeart           = parseSingleArg(args, i++, 'int',   '--keep-heart {N}    Max umas to assign heart icon (default: ' + DEFAULT_CONFIG.keepHeart + ')'); break;
-      case '--trash':      config.numTrash            = parseSingleArg(args, i++, 'int',   '--trash {N}     Number of umas to consider for transfer. (default: ' + DEFAULT_CONFIG.numTrash + ')'); break;
-      case '--race':       raceId                     = parseSingleArg(args, i++, 'int',   '--race {ID}         Target race ID for parent recommendations (example: --race 6019)'); break;
-      case '--rank':       rankFilter                 = parseSingleArg(args, i++, 'int',   '--rank #            Filter output to umas with this rank score'); break;
-      case '--breakdown':  showBreakdown              = true; break;
+      case '--help':            jsonPath = ''; break;
+      case '--keep':            config.keepPerArchetype   = parseSingleArg(args, i++, 'int',   '--keep {N}           Keep top N umas per archetype label (default: ' + DEFAULT_CONFIG.keepPerArchetype + ')'); break;
+      case '--max-icon':        config.maxPerIcon          = parseSingleArg(args, i++, 'int',   '--max-icon {N}       Max umas per icon across all archetypes (default: ' + DEFAULT_CONFIG.maxPerIcon + ')'); break;
+      case '--min-score':       config.minCategoryScore    = parseSingleArg(args, i++, 'float', '--min-score {N}      Minimum score to qualify for a category (default: ' + DEFAULT_CONFIG.minCategoryScore + ')'); break;
+      case '--heart':           config.heartWhiteThreshold = parseSingleArg(args, i++, 'float', '--heart {N}          Minimum white total for heart consideration (default: ' + DEFAULT_CONFIG.heartWhiteThreshold + ')'); break;
+      case '--ace':             config.aceScoreThreshold   = parseSingleArg(args, i++, 'int',   '--ace {N}            Minimum rank score for ace fallback (default: ' + DEFAULT_CONFIG.aceScoreThreshold + ')'); break;
+      case '--keep-ace':        config.keepAce             = parseSingleArg(args, i++, 'int',   '--keep-ace {N}       Max umas to assign ace icon (default: ' + DEFAULT_CONFIG.keepAce + ')'); break;
+      case '--keep-heart':      config.keepHeart           = parseSingleArg(args, i++, 'int',   '--keep-heart {N}     Max umas to assign heart icon (default: ' + DEFAULT_CONFIG.keepHeart + ')'); break;
+      case '--trash':           config.numTrash            = parseSingleArg(args, i++, 'int',   '--trash {N}          Number of umas to consider for transfer. (default: ' + DEFAULT_CONFIG.numTrash + ')'); break;
+      case '--race':            raceId                     = parseSingleArg(args, i++, 'int',   '--race {ID}          Target race ID for parent recommendations (example: --race 6019)'); break;
+      case '--rank':            rankFilter                 = parseSingleArg(args, i++, 'int',   '--rank #             Filter output to umas with this rank score'); break;
+      case '--breakdown':       showBreakdown              = true; break;
       default:
         if (!args[i].startsWith('--')) jsonPath = args[i];
       }
@@ -86,13 +87,14 @@ function parseArgs() {
         'Usage: npm run cli -- <path-to-json> [options]',
         '',
         'Options:',
-        '  --keep N          Keep top N umas per category        (default: ' + DEFAULT_CONFIG.keepPerCategory + ')',
+        '  --keep N          Keep top N umas per archetype label (default: ' + DEFAULT_CONFIG.keepPerArchetype + ')',
+        '  --max-icon N      Max umas per icon across archetypes (default: ' + DEFAULT_CONFIG.maxPerIcon + ')',
         '  --min-score N     Minimum score for category entry    (default: ' + DEFAULT_CONFIG.minCategoryScore + ')',
         '  --heart N         Minimum white total for hearts      (default: ' + DEFAULT_CONFIG.heartWhiteThreshold + ')',
         '  --ace N           Minimum rank score for ace          (default: ' + DEFAULT_CONFIG.aceScoreThreshold + ')',
         '  --keep-ace N      Max umas assigned ace icon          (default: ' + DEFAULT_CONFIG.keepAce + ')',
         '  --keep-heart N    Max umas assigned heart icon        (default: ' + DEFAULT_CONFIG.keepHeart + ')',
-        '  --trash N         Number of umas to  transfer.        (default: ' + DEFAULT_CONFIG.numTrash + ')',
+        '  --trash N         Number of umas to transfer          (default: ' + DEFAULT_CONFIG.numTrash + ')',
         '  --race ID         Target race ID for recommendations  (example: 6019)',
         '  --rank #          Filter output to umas with this rank score',
         '  --breakdown       Show a breakdown of scores (highly recommended to limit output with other options)'
@@ -115,12 +117,12 @@ function allScores(uma: ScoredUma): string {
     .slice(0, 1)
     .map(x => `${x.cat}:${x.val.toFixed(1)}`);
 
-  // Top two distance values
+  // Top distance value
   const distParts = (['sprint', 'mile', 'mid', 'long'] as const)
     .map(cat => ({ cat, val: v.distance[cat] ?? 0 }))
     .filter(x => x.val > 0)
     .sort((a, b) => b.val - a.val)
-    .slice(0, 2)
+    .slice(0, 1)
     .map(x => `${x.cat}:${x.val.toFixed(1)}`);
 
   // Top style value
@@ -172,7 +174,7 @@ function printTable(
   const raceResults = [...results]
     .filter(u => u.race_score > 0)
     .sort((a, b) => b.race_score - a.race_score)
-    .slice(0, config.keepPerCategory);
+    .slice(0, config.maxPerIcon);
 
   if (raceResults.length > 0) {
     console.log('🤝 TOP RACE PARENTS');
@@ -220,11 +222,34 @@ function printTable(
       console.log(` ${lock} rs:${uma.rank_score}  ${name}  ${archLabel}  ${qStr}${raceStr}${scores}`);
 
       if (showBreakdown) {
+        // Quality score composition
+        const blueContrib = uma.quality_score - uma.white_total;
+        console.log(`       ── Quality ──  q:${uma.quality_score.toFixed(1)}  (blues:${blueContrib.toFixed(1)}  whites:${uma.white_total.toFixed(1)})`);
+
+        // Archetype vector — all dimension values, winner marked with *
+        const av = uma.archetype_vector;
+        const winSurf = uma.archetype_label.surface;
+        const winDist = uma.archetype_label.distance;
+        const winStyle = uma.archetype_label.style;
+        const fmtDim = (dim: Record<string, number>, keys: string[], winner: string) =>
+          keys.map(k => {
+            const v = dim[k] ?? 0;
+            return v > 0 ? `${k}:${v.toFixed(1)}${k === winner ? '*' : ''}` : null;
+          }).filter(Boolean).join('  ');
+        console.log(`       ── Archetype ──  ${uma.archetype_label.label}`);
+        console.log(`           surface:  ${fmtDim(av.surface,  ['turf','dirt'],                   winSurf)}`);
+        console.log(`           distance: ${fmtDim(av.distance, ['sprint','mile','mid','long'],     winDist)}`);
+        console.log(`           style:    ${fmtDim(av.style,    ['front','pace','late','end'],      winStyle)}`);
+
         const blues  = uma.factors.filter(f => f.type === 'blue');
         const pinks  = uma.factors.filter(f => f.type === 'pink');
         const greens  = uma.factors.filter(f => f.type === 'unique');
         const whites = uma.factors.filter(f => f.type === 'white')
-          .sort((a, b) => (b.contribution ?? 0) - (a.contribution ?? 0));
+          .sort((a, b) => {
+            const ea = (a.contribution ?? 0) * (a.style_mult ?? 1);
+            const eb = (b.contribution ?? 0) * (b.style_mult ?? 1);
+            return eb - ea;
+          });
 
         if (blues.length > 0) {
           console.log(`       ── Blues ──`);
@@ -233,7 +258,7 @@ function printTable(
             const stars = ('★'.repeat(f.stars) + '☆'.repeat(3 - f.stars)).padEnd(3);
             const name  = f.name.padEnd(12);
             const pen   = f.contribution < 0 ? c(C.red, `PENALTY`) : '';
-            console.log(`       ${src}  ${stars}  ${name}  → all dist: ${f.contribution.toFixed(2)} ${pen}`);
+            console.log(`       ${src}  ${stars}  ${name}  → ${f.contribution.toFixed(2)} ${pen}`);
           }
         }
 
@@ -246,13 +271,9 @@ function printTable(
             const src   = f.source === 'own' ? 'own' : 'par';
             const stars = ('★'.repeat(f.stars) + '☆'.repeat(3 - f.stars)).padEnd(3);
             const name  = f.name.padEnd(14);
-            const isStyle = STYLE_PINKS_DISPLAY.has(f.category);
-            const isDom = f.category === dominantStyleForDisplay; // see note below
-            const tag   = isStyle
-              ? (isDom ? c(C.green, '[dominant]') : '[style]')
-              : `→ ${f.category}`;
+            const tag   = `→ ${f.category}`;
             const pen   = f.contribution < 0 ? c(C.red, 'PENALTY') : '';
-            console.log(`       ${src}  ${stars}  ${name}  ${tag}  contrib:${f.contribution.toFixed(2)} ${pen}`);
+            console.log(`       ${src}  ${stars}  ${name}  ${tag}  ${f.contribution.toFixed(2)} ${pen}`);
           }
           console.log();
         }
@@ -292,17 +313,24 @@ function printTable(
               'Vision':       '[Nav]',
               'Debuff':       '[Dbf]',
             }[w.skill_category] ?? '-----') : '-----';
+            const styleMult = w.style_mult ?? 1.0;
+            const isStyleGated = styleMult === 0;
+            const pm  = isStyleGated
+              ? c(C.gray, 'pink:0.0x ')
+              : (w.pink_multiplier ?? 1) > 1
+                ? `pink:${w.pink_multiplier!.toFixed(2)}x` : '----------';
+            const sb  = (w.special_bonus ?? 1) > 1
+              ? `bonus:${w.special_bonus!.toFixed(1)}x` : '----------';
+            const rawContrib = w.stat_boost ? (w.stat_boost_contribution ?? w.contribution) : w.contribution;
+            const effectiveContrib = rawContrib * styleMult;
+            const statTag = (!isStyleGated && w.stat_boost) ? c(C.yellow, `[stat:${w.stat_boost}]`) : '';
             const tags = [
               ...(w.dist_cats  ?? []).map(d => `[${d}]`),
               ...(w.style_cats ?? []).map(s => `[${s}]`),
               ...(w.surf_cats  ?? []).map(s => `[${s}]`),
-            ].join('').padStart(12, '-');
-            const pm  = (w.pink_multiplier ?? 1) > 1
-              ? `pink:${w.pink_multiplier!.toFixed(2)}x` : '----------';
-            const sb  = (w.special_bonus ?? 1) > 1
-              ? `bonus:${w.special_bonus!.toFixed(1)}x` : '----------';
-            const val = `→ ${w.contribution.toFixed(2)}`;
-            console.log(`       ${src} ${catTag} ${stars} ${name} ${tags} ${pm} ${sb} ${val}`);
+            ].join('');
+            const val = `→ ${effectiveContrib.toFixed(2)}${tags ? ' ' + tags : ''}${statTag ? ' ' + statTag : ''}`;
+            console.log(`       ${src} ${catTag} ${stars} ${name} ${pm} ${sb} ${val}`);
           }
           console.log();
         }
@@ -342,7 +370,7 @@ if (!Array.isArray(raw)) {
 }
 
 console.log(`Loaded ${raw.length} umas from ${jsonPath}`);
-console.log(`Config: keep=${config.keepPerCategory}, min-score=${config.minCategoryScore}, heart-threshold=${config.heartWhiteThreshold}, ace-threshold=${config.aceScoreThreshold}`);
+console.log(`Config: keep-archetype=${config.keepPerArchetype}, max-icon=${config.maxPerIcon}, min-score=${config.minCategoryScore}, heart-threshold=${config.heartWhiteThreshold}, ace-threshold=${config.aceScoreThreshold}`);
 
 let skillRelevance: Map<number, number> | undefined;
 if (raceId !== null) {
