@@ -136,8 +136,10 @@ export interface RaceEnvironment {
 // ─── Classifier config ────────────────────────────────────────────────────────
 
 export interface ClassifierConfig {
-  // How many top umas to keep per icon category
-  keepPerCategory: number;
+  // How many top umas to keep per archetype label (e.g. "front × turf/mile")
+  keepPerArchetype: number;
+  // Hard cap on total umas assigned to each icon across all archetype groups
+  maxPerIcon: number;
   // How many top aces to keep
   keepAce: number;
   // How many umas to keep for white skills
@@ -161,10 +163,11 @@ export interface ClassifierConfig {
 }
 
 export const DEFAULT_CONFIG: ClassifierConfig = {
-  keepPerCategory: 6,
+  keepPerArchetype: 3,
+  maxPerIcon: 10,
   keepAce: 10,
   keepHeart: 10,
-  numTrash: 20,
+  numTrash: 50,
   minCategoryScore: 1,
   heartWhiteThreshold: 10,
   aceScoreThreshold: 12000,
@@ -176,5 +179,5 @@ export const DEFAULT_CONFIG: ClassifierConfig = {
     2016001: 1.5,  // Groundwork (no front runner pinks)
     2016101: 1.5,  // Tail Held High
   },
-  whiteStatBoostMultiplier: 2.0,
+  whiteStatBoostMultiplier: 1.5,
 };
