@@ -103,27 +103,46 @@ function parseArgs() {
   return { jsonPath, config, showBreakdown, raceId, rankFilter };
 }
 
+// Shows the archetype vector top values and white skill type breakdown.
 function allScores(uma: ScoredUma): string {
-  const dist:   string[] = [];
-  const whites: string[] = [];
-  let style = '';
+  const v = uma.archetype_vector;
 
-  for (const [k, v] of Object.entries(uma.scores).sort((a, b) => b[1] - a[1])) {
-    if (v <= 0) continue;
-    const val = v.toFixed(1);
-    if (STYLE_PINKS_DISPLAY.has(k)) {
-      style = `${k}:${val}`;
-    } else if (['dirt','sprint','mile','mid','long'].includes(k)) {
-      dist.push(`${k}:${val}`);
-    } else if (['tSpd','spurt','accel','hp','nav'].includes(k)) {
-      whites.push(`${k}:${val}`);
-    }
+  // Top surface value
+  const surfParts = (['turf', 'dirt'] as const)
+    .map(cat => ({ cat, val: v.surface[cat] ?? 0 }))
+    .filter(x => x.val > 0)
+    .sort((a, b) => b.val - a.val)
+    .slice(0, 1)
+    .map(x => `${x.cat}:${x.val.toFixed(1)}`);
+
+  // Top two distance values
+  const distParts = (['sprint', 'mile', 'mid', 'long'] as const)
+    .map(cat => ({ cat, val: v.distance[cat] ?? 0 }))
+    .filter(x => x.val > 0)
+    .sort((a, b) => b.val - a.val)
+    .slice(0, 2)
+    .map(x => `${x.cat}:${x.val.toFixed(1)}`);
+
+  // Top style value
+  const styleParts = (['front', 'pace', 'late', 'end'] as const)
+    .map(cat => ({ cat, val: v.style[cat] ?? 0 }))
+    .filter(x => x.val > 0)
+    .sort((a, b) => b.val - a.val)
+    .slice(0, 1)
+    .map(x => `${x.cat}:${x.val.toFixed(1)}`);
+
+  // White type breakdown from scores
+  const whites: string[] = [];
+  for (const [k, val] of Object.entries(uma.scores).sort((a, b) => b[1] - a[1])) {
+    if (val <= 0) continue;
+    if (['tSpd','spurt','accel','hp','nav'].includes(k)) whites.push(`${k}:${val.toFixed(1)}`);
   }
 
   const parts: string[] = [];
-  if (style)         parts.push(c(C.red, style));
-  if (dist.length)   parts.push(`${c(C.magenta, dist.slice(0,2).join(' '))}`);
-  if (whites.length) parts.push(`${c(C.yellow, whites.join(' '))}`);
+  if (styleParts.length) parts.push(c(C.red,     styleParts.join(' ')));
+  if (surfParts.length)  parts.push(c(C.cyan,    surfParts.join(' ')));
+  if (distParts.length)  parts.push(c(C.magenta, distParts.join(' ')));
+  if (whites.length)     parts.push(c(C.yellow,  whites.join(' ')));
   return parts.join('  ');
 }
 
@@ -190,14 +209,15 @@ function printTable(
     console.log(`${ICON_DISPLAY[icon]}  (${umas.length})`);
     console.log('─'.repeat(60));
 
-    for (const uma of umas.sort((a, b) => b.rank_score - a.rank_score)) {
+    for (const uma of umas.sort((a, b) => b.quality_score - a.quality_score)) {
       if (rankFilter !== null && uma.rank_score !== rankFilter) continue;
-      const lock = uma.is_locked ? '🔒' : '  ';
-      const name = lookupCharName(uma.card_id).padEnd(20).slice(0, 20);
-      const skill_score = `whites:${uma.white_total.toFixed(1)}`;
-      const scores = allScores(uma);
-      const raceStr = uma.race_score > 0 ? `race:${uma.race_score.toFixed(1)}`.padEnd(6) : '';
-      console.log(` ${lock} rs:${uma.rank_score}  ${name}${skill_score.padEnd(12)}${raceStr} ${scores}`);
+      const lock      = uma.is_locked ? '🔒' : '  ';
+      const name      = lookupCharName(uma.card_id).padEnd(20).slice(0, 20);
+      const archLabel = c(C.cyan, uma.archetype_label.label.padEnd(22).slice(0, 22));
+      const qStr      = `q:${uma.quality_score.toFixed(1)}`.padEnd(10);
+      const raceStr   = uma.race_score > 0 ? `race:${uma.race_score.toFixed(1)}  ` : '';
+      const scores    = allScores(uma);
+      console.log(` ${lock} rs:${uma.rank_score}  ${name}  ${archLabel}  ${qStr}${raceStr}${scores}`);
 
       if (showBreakdown) {
         const blues  = uma.factors.filter(f => f.type === 'blue');
