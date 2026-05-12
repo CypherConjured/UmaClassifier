@@ -152,14 +152,27 @@ export interface ClassifierConfig {
   heartWhiteThreshold: number;
   // rank_score threshold to qualify as ace fallback
   aceScoreThreshold: number;
-  // Weights for own vs parent vs grandparent factors
+  // All scoring weights and multipliers
   weights: {
     own: number;
     parent: number; // position_id 10 or 20 only; grandparents are ignored
+    blue: { own: Record<number, number>; parent: Record<number, number> };
+    pink: { own: Record<number, number>; parent: Record<number, number> };
+    // Per-rarity weights for white skills and stat-boost sparks (bakes in star value — no separate f.stars multiply)
+    skillSparks: { own: Record<number, number>; parent: Record<number, number> };
+    statSparks:  { own: Record<number, number>; parent: Record<number, number> };
+    skillBonuses: Record<number, number>; // skillId (base, 1★ variant) → multiplier
+    // Partial credit multipliers applied when a factor's category doesn't match the scoring target
+    mismatchMult: {
+      surface:      number; // off-category surface pinks (e.g. dirt pink on a turf icon)
+      distance:     number; // off-category distance pinks (e.g. mile pink on sprint icon)
+      style:        number; // white skills tagged for a non-dominant style
+      dirtAffinity: number; // star multiplier for dirt pinks/whites in the archetype vector
+    };
+    uniqueMult: number;            // extra multiplier applied to unique-type skills
+    heartUpgradeThreshold: number; // skill must be this × better than best seen to count as new heart coverage
+    heartMinSkillValue: number;    // minimum contribution for a skill to be considered for heart coverage
   };
-  skillBonuses: Record<number, number>; // skillId (base, 1★ variant) → multiplier
-  // Extra multiplier applied to white stars when rolling into category score
-  whiteStatBoostMultiplier: number;
 }
 
 export const DEFAULT_CONFIG: ClassifierConfig = {
@@ -174,10 +187,36 @@ export const DEFAULT_CONFIG: ClassifierConfig = {
   weights: {
     own: 1.0,
     parent: 0.4,
+    blue: {
+      own:    { 3: 4.0, 2: 1.0, 1: -0.5 },
+      parent: { 3: 1.5, 2: 0.6, 1: 0.1  },
+    },
+    pink: {
+      own:    { 3: 4.0, 2: 1.0, 1: -0.5 },
+      parent: { 3: 1.5, 2: 0.6, 1: 0.1  },
+    },
+    // Effective values bake in the old rarityBonus (3→1.2, 2→0.8, 1→0.6) × stars.
+    // statSparks additionally bakes in the former whiteStatBoostMultiplier (1.5×).
+    skillSparks: {
+      own:    { 3: 3.6, 2: 1.6, 1: 0.6 },
+      parent: { 3: 3.6, 2: 1.6, 1: 0.6 },
+    },
+    statSparks: {
+      own:    { 3: 5.4, 2: 2.4, 1: 0.9 },
+      parent: { 3: 5.4, 2: 2.4, 1: 0.9 },
+    },
+    skillBonuses: {
+      2016001: 1.5,  // Groundwork (no front runner pinks)
+      2016101: 1.5,  // Tail Held High
+    },
+    mismatchMult: {
+      surface:      0.0,
+      distance:     0.0,
+      style:        0.0,
+      dirtAffinity: 2,
+    },
+    uniqueMult: 1.2,
+    heartUpgradeThreshold: 1.5,
+    heartMinSkillValue: 1.0,
   },
-  skillBonuses: {
-    2016001: 1.5,  // Groundwork (no front runner pinks)
-    2016101: 1.5,  // Tail Held High
-  },
-  whiteStatBoostMultiplier: 1.5,
 };

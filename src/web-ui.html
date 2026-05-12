@@ -522,14 +522,12 @@
             if (!file) { alert('Please select a JSON file.'); return; }
 
             const config = {
-                keepPerCategory: parseInt(document.getElementById('keepN').value),
+                keepPerArchetype: parseInt(document.getElementById('keepN').value),
                 minCategoryScore: parseFloat(document.getElementById('minScore').value),
                 heartWhiteThreshold: parseFloat(document.getElementById('heartThresh').value),
                 aceScoreThreshold: parseInt(document.getElementById('aceThresh').value),
                 keepAce: parseInt(document.getElementById('keepAce').value),
                 keepHeart: parseInt(document.getElementById('keepHeart').value),
-                whiteSkillMultiplier: parseFloat(document.getElementById('whiteSkillMult').value),
-                whiteStatBoostMultiplier: parseFloat(document.getElementById('whiteStatMult').value),
                 weights: {
                     own: parseFloat(document.getElementById('weightOwn').value),
                     parent: parseFloat(document.getElementById('weightParent').value),

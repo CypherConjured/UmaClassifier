@@ -42,10 +42,22 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
         weights: {
           ...DEFAULT_CONFIG.weights,
           ...(body.config?.weights ?? {}),
-        },
-        skillBonuses: {
-          ...DEFAULT_CONFIG.skillBonuses,
-          ...(body.config?.skillBonuses ?? {}),
+          skillBonuses: {
+            ...DEFAULT_CONFIG.weights.skillBonuses,
+            ...(body.config?.weights?.skillBonuses ?? {}),
+          },
+          skillSparks: {
+            own:    { ...DEFAULT_CONFIG.weights.skillSparks.own,    ...(body.config?.weights?.skillSparks?.own    ?? {}) },
+            parent: { ...DEFAULT_CONFIG.weights.skillSparks.parent, ...(body.config?.weights?.skillSparks?.parent ?? {}) },
+          },
+          statSparks: {
+            own:    { ...DEFAULT_CONFIG.weights.statSparks.own,    ...(body.config?.weights?.statSparks?.own    ?? {}) },
+            parent: { ...DEFAULT_CONFIG.weights.statSparks.parent, ...(body.config?.weights?.statSparks?.parent ?? {}) },
+          },
+          mismatchMult: {
+            ...DEFAULT_CONFIG.weights.mismatchMult,
+            ...(body.config?.weights?.mismatchMult ?? {}),
+          },
         },
       };
       const env: RaceEnvironment | undefined = body.targetRaceId
