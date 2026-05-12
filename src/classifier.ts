@@ -5,19 +5,26 @@ import type {
   ScoredUma,
   FactorContribution,
   CategoryScores,
+  ArchetypeVector,
+  ArchetypeLabel,
   Icon,
   ClassifierConfig,
 } from './types.ts';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const APTITUDE_PINKS = new Set(['turf', 'dirt', 'sprint', 'mile', 'mid', 'long']);
-const STYLE_PINKS = new Set(['front', 'pace', 'late', 'end']);
-const ALL_PINKS = new Set([...APTITUDE_PINKS, ...STYLE_PINKS]);
+const SURFACE_CATS  = ['turf', 'dirt']                 as const;
+const DISTANCE_CATS = ['sprint', 'mile', 'mid', 'long'] as const;
+const STYLE_CATS    = ['front', 'pace', 'late', 'end']  as const;
 
-const ICON_CATEGORIES: Icon[] = [
-  'dirt', 'sprint', 'mile', 'mid', 'long',
-];
+const SURFACE_SET  = new Set<string>(SURFACE_CATS);
+const DISTANCE_SET = new Set<string>(DISTANCE_CATS);
+const STYLE_SET    = new Set<string>(STYLE_CATS);
+const ALL_PINK_SET = new Set<string>([...SURFACE_CATS, ...DISTANCE_CATS, ...STYLE_CATS]);
+
+const ICON_CATEGORIES: Icon[] = ['dirt', 'sprint', 'mile', 'mid', 'long'];
+
+const DIRT_DOUBLE = 2;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -25,88 +32,169 @@ function isDirectParent(position_id: number): boolean {
   return position_id === 10 || position_id === 20;
 }
 
-function specialBonus(
-  factor_id: number,
-  config: ClassifierConfig
-): number {
+function specialBonus(factor_id: number, config: ClassifierConfig): number {
   const base = Math.floor(factor_id / 10) * 10 + 1;
   return config.skillBonuses[base] ?? 1.0;
 }
 
-function determineDominantStyle(
-  ownFactorIds: number[],
-  parentFactorIds: number[][]
-): string | null {
-  const ownTotals = new Map<string, number>();
-  const parentTotals = new Map<string, number>();
+// ─── Archetype Vector ──────────────────────────────────────────────────────────
 
-  for (const fid of ownFactorIds) {
+// Computes the effective star vector for a single set of factor_ids (one "unit" —
+// the uma itself, or one of its direct parents). Dirt contributions are doubled
+// before the formula runs. Generic white skills (no dist/surf/style tags) are
+// excluded from both numerator and denominator so they don't dilute category fractions.
+//
+// effective_stars(cat) = pink_stars(cat) + (white_stars_in_cat / white_stars_total) × 6
+function computeUnitVector(factor_ids: number[]): ArchetypeVector {
+  const pinkSurface:  Record<string, number> = {};
+  const pinkDist:     Record<string, number> = {};
+  const pinkStyle:    Record<string, number> = {};
+
+  const whiteSurface: Record<string, number> = {};
+  const whiteDist:    Record<string, number> = {};
+  const whiteStyle:   Record<string, number> = {};
+  let whiteTotal = 0;
+
+  for (const fid of factor_ids) {
     const f = lookupFactor(fid);
-    if (!f || f.type !== 'pink' || !f.category) continue;
-    if (!STYLE_PINKS.has(f.category)) continue;
-    ownTotals.set(f.category, (ownTotals.get(f.category) ?? 0) + f.stars);
-  }
+    if (!f) continue;
 
-  if (ownTotals.size > 0) {
-    return [...ownTotals.entries()].sort((a, b) => b[1] - a[1])[0][0];
-  }
+    if (f.type === 'pink' && f.category) {
+      if (SURFACE_SET.has(f.category)) {
+        const stars = f.category === 'dirt' ? f.stars * DIRT_DOUBLE : f.stars;
+        pinkSurface[f.category] = (pinkSurface[f.category] ?? 0) + stars;
+      } else if (DISTANCE_SET.has(f.category)) {
+        pinkDist[f.category] = (pinkDist[f.category] ?? 0) + f.stars;
+      } else if (STYLE_SET.has(f.category)) {
+        pinkStyle[f.category] = (pinkStyle[f.category] ?? 0) + f.stars;
+      }
 
-  for (const ids of parentFactorIds) {
-    for (const fid of ids) {
-      const f = lookupFactor(fid);
-      if (!f || f.type !== 'pink' || !f.category) continue;
-      if (!STYLE_PINKS.has(f.category)) continue;
-      parentTotals.set(f.category, (parentTotals.get(f.category) ?? 0) + f.stars);
+    } else if (f.type === 'white' || f.type === 'unique') {
+      for (const cat of (f.surf_cats ?? [])) {
+        const s = cat === 'dirt' ? f.stars * DIRT_DOUBLE : f.stars;
+        whiteSurface[cat] = (whiteSurface[cat] ?? 0) + s;
+        whiteTotal += s;
+      }
+      for (const cat of (f.dist_cats ?? [])) {
+        whiteDist[cat] = (whiteDist[cat] ?? 0) + f.stars;
+        whiteTotal += f.stars;
+      }
+      for (const cat of (f.style_cats ?? [])) {
+        whiteStyle[cat] = (whiteStyle[cat] ?? 0) + f.stars;
+        whiteTotal += f.stars;
+      }
     }
   }
 
-  if (parentTotals.size > 0) {
-    return [...parentTotals.entries()].sort((a, b) => b[1] - a[1])[0][0];
-  }
+  const eff = (pink: number, white: number): number =>
+    pink + (whiteTotal > 0 ? (white / whiteTotal) * 6 : 0);
 
-  return null;
+  const vector: ArchetypeVector = { surface: {}, distance: {}, style: {} };
+  for (const cat of SURFACE_CATS)  vector.surface[cat]  = eff(pinkSurface[cat]  ?? 0, whiteSurface[cat] ?? 0);
+  for (const cat of DISTANCE_CATS) vector.distance[cat] = eff(pinkDist[cat]     ?? 0, whiteDist[cat]    ?? 0);
+  for (const cat of STYLE_CATS)    vector.style[cat]    = eff(pinkStyle[cat]    ?? 0, whiteStyle[cat]   ?? 0);
+
+  return vector;
 }
 
-// ─── Pink Multiplier ──────────────────────────────────────────────────────
+// Scales every value in a vector by weight and returns a new vector.
+function scaleVector(v: ArchetypeVector, weight: number): ArchetypeVector {
+  const sc = (r: Record<string, number>) =>
+    Object.fromEntries(Object.entries(r).map(([k, val]) => [k, val * weight]));
+  return { surface: sc(v.surface), distance: sc(v.distance), style: sc(v.style) };
+}
 
-// White skills that are tagged for specific distances/surfaces/styles are amplified
-// by how many matching pink stars the uma has. Each pink star in a matching category
-// adds 1/6 to the multiplier, so 6 matching stars → 2× amplification.
-function pinkMultiplier(
-  f: FactorEntry,
-  pinkStars: Map<string, number>
-): number {
-  const cats = [
-    ...(f.style_cats ?? []),
-    ...(f.dist_cats ?? []),
-    ...(f.surf_cats ?? []),
-  ];
+// Adds vector b into vector a in-place (b should already be scaled).
+function addVector(a: ArchetypeVector, b: ArchetypeVector): void {
+  for (const cat of SURFACE_CATS)  a.surface[cat]  = (a.surface[cat]  ?? 0) + (b.surface[cat]  ?? 0);
+  for (const cat of DISTANCE_CATS) a.distance[cat] = (a.distance[cat] ?? 0) + (b.distance[cat] ?? 0);
+  for (const cat of STYLE_CATS)    a.style[cat]    = (a.style[cat]    ?? 0) + (b.style[cat]    ?? 0);
+}
+
+// Derives the archetype label from the lineage-aggregated vector.
+// Dirt+Long is a blacklisted combo — falls back to next-best distance.
+// 'Any' is used only when a dimension has zero signal.
+function determineArchetypeLabel(v: ArchetypeVector): ArchetypeLabel {
+  // Surface: higher of turf vs dirt; default to turf when both are 0
+  const turf = v.surface['turf'] ?? 0;
+  const dirt = v.surface['dirt'] ?? 0;
+  const surface = dirt > turf ? 'dirt' : 'turf';
+
+  // Distance: highest value wins
+  let distance = 'Any';
+  let distScore = 0;
+  for (const cat of DISTANCE_CATS) {
+    const s = v.distance[cat] ?? 0;
+    if (s > distScore) { distScore = s; distance = cat; }
+  }
+
+  // Blacklist: dirt+long → fall back to next-best non-long distance
+  if (surface === 'dirt' && distance === 'long') {
+    distance = 'Any';
+    distScore = 0;
+    for (const cat of DISTANCE_CATS) {
+      if (cat === 'long') continue;
+      const s = v.distance[cat] ?? 0;
+      if (s > distScore) { distScore = s; distance = cat; }
+    }
+  }
+
+  // Style: highest value wins
+  let style = 'Any';
+  let styleScore = 0;
+  for (const cat of STYLE_CATS) {
+    const s = v.style[cat] ?? 0;
+    if (s > styleScore) { styleScore = s; style = cat; }
+  }
+
+  const distPart = distance !== 'Any' ? `/${distance}` : '';
+  const label    = style !== 'Any'
+    ? `${style} × ${surface}${distPart}`
+    : `${surface}${distPart}`;
+
+  return { surface, distance, style, label };
+}
+
+// Derives the icon category from an archetype label.
+// Returns null for 'Any' distance on turf — those fall through to ace/skip.
+function archetypeToIcon(label: ArchetypeLabel): Icon | null {
+  if (label.surface === 'dirt') return 'dirt';
+  switch (label.distance) {
+    case 'sprint': return 'sprint';
+    case 'mile':   return 'mile';
+    case 'mid':    return 'mid';
+    case 'long':   return 'long';
+    default:       return null;
+  }
+}
+
+// ─── Pink multiplier (used in quality scoring pipeline) ───────────────────────
+
+// White skills whose activation tags match the uma's pink aptitudes are amplified.
+// Each matching pink star adds 1/6 to the multiplier — 6 matching stars → 2×.
+function pinkMultiplier(f: FactorEntry, pinkStars: Map<string, number>): number {
+  const cats = [...(f.style_cats ?? []), ...(f.dist_cats ?? []), ...(f.surf_cats ?? [])];
   if (cats.length === 0) return 1.0;
   const matchingStars = cats.reduce((sum, cat) => sum + (pinkStars.get(cat) ?? 0), 0);
   return 1 + matchingStars / 6;
 }
 
-// ─── Pink star collection ──────────────────────────────────────────────────────
-
-function collectPinks(
-  factor_ids: number[],
-  out: Map<string, number>
-): void {
+function collectPinks(factor_ids: number[], out: Map<string, number>): void {
   for (const fid of factor_ids) {
     const f = lookupFactor(fid);
-    if (!f || f.type !== 'pink' || !f.category) continue;
-    if (!ALL_PINKS.has(f.category)) continue;
+    if (!f || f.type !== 'pink' || !f.category || !ALL_PINK_SET.has(f.category)) continue;
     out.set(f.category, (out.get(f.category) ?? 0) + f.stars);
   }
 }
 
-// ─── Factor scoring ────────────────────────────────────────────────────────────
+// ─── Quality scoring pipeline ─────────────────────────────────────────────────
+// These functions compute the quality_score (blues + whites) and populate the
+// factors array for the --breakdown CLI display. They are kept from the previous
+// design and run in parallel with the archetype vector computation.
 
-// Blues have a multiplier depending on how useful they are for the category. (TODO: to be tuned)
-// Aptitude pinks score fully for their matching category only. (PARTIAL_MULT is 0 for now)
-// Dirt is treated as a distance category here; turf maps to all non-dirt distances.
-// Style pinks only score if the uma's dominant running style matches
-// Non-dominant style pinks are tracked for display but contribute 0.
+// Blues score equally across all distance categories; kept here for the factors log.
+// Aptitude pinks add to per-icon subscores (used in breakdown only under new design).
+// Style pinks gate style-tagged white skill scoring.
 function scoreBluesAndPinks(
   factor_ids: number[],
   weight: number,
@@ -116,9 +204,10 @@ function scoreBluesAndPinks(
   config: ClassifierConfig,
   dominantStyle: string | null
 ): void {
-  const BLUE_RARITY_OWN: Record<number, number>   = { 3: 3.0, 2: 1.0, 1: -0.5 };
-  const PINK_RARITY_OWN: Record<number, number>   = { 3: 3.0, 2: 1.0, 1: -0.5 };
-  const PINK_RARITY_PARENT: Record<number, number> = { 3: 1.0, 2: 0.6, 1: 0.2 };
+  const BLUE_RARITY_OWN: Record<number, number>    = { 3: 3.0, 2: 1.0, 1: -0.5 };
+  const BLUE_RARITY_PARENT: Record<number, number> = { 3: 1.0, 2: 0.5, 1: 0.0 };
+  const PINK_RARITY_OWN: Record<number, number>    = { 3: 3.0, 2: 1.0, 1: -0.5 };
+  const PINK_RARITY_PARENT: Record<number, number> = { 3: 1.0, 2: 0.5, 1: 0.0 };
   const PARTIAL_MULT = 0.0; // partial credit for off-category aptitude pinks
 
   for (const fid of factor_ids) {
@@ -128,105 +217,43 @@ function scoreBluesAndPinks(
     if (f.type === 'blue' && f.category) {
       const rarityMult = source === 'own'
         ? (BLUE_RARITY_OWN[f.stars] ?? 0)
-        : Math.max(f.stars * 0.5, 0);
-      let contribution = rarityMult * weight;
-
-      for (const icon of ICON_CATEGORIES) {
-        //TODO we need some bonuses for different distances. Stamina in particular.
-        let attrRelevanceMulti = 1.0;
-        switch (icon) {
-          case 'dirt':
-            if(f.category === 'power') attrRelevanceMulti = 1.2;
-            break;
-          case 'sprint':
-            if(f.category === 'speed') attrRelevanceMulti = 1.5;
-            else if(f.category === 'stamina') attrRelevanceMulti = 0.8;
-            break;
-          case 'mile':
-            // if(f.category === 'stamina') attrRelevanceMulti = 1.0;
-            break;
-          case 'mid':
-            if(f.category === 'stamina') attrRelevanceMulti = 1.2;
-            break;
-          case 'long':
-            if(f.category === 'stamina') attrRelevanceMulti = 1.5;
-            else attrRelevanceMulti = 0.9;
-            break;
-          default:
-            break;
-        }
-        contribution *= attrRelevanceMulti;
-        scores[icon] = (scores[icon] ?? 0) + contribution;
-      }
-
-      factors.push({
-        factor_id: fid, name: f.name, stars: f.stars,
-        type: 'blue', source, category: f.category, contribution,
-      });
+        : (BLUE_RARITY_PARENT[f.stars] ?? 0);
+      const contribution = rarityMult * weight;
+      for (const icon of ICON_CATEGORIES) scores[icon] = (scores[icon] ?? 0) + contribution;
+      factors.push({ factor_id: fid, name: f.name, stars: f.stars, type: 'blue', source, category: f.category, contribution });
 
     } else if (f.type === 'pink' && f.category) {
-      if (APTITUDE_PINKS.has(f.category)) {
+      if (SURFACE_SET.has(f.category) || DISTANCE_SET.has(f.category)) {
         const rarityMult = source === 'own'
           ? (PINK_RARITY_OWN[f.stars] ?? 0)
           : (PINK_RARITY_PARENT[f.stars] ?? 0);
-
         for (const icon of ICON_CATEGORIES) {
-          // Turf aptitude benefits all non-dirt categories; dirt only benefits dirt.
-          // Distance aptitudes match their exact category.
           let catMult = PARTIAL_MULT;
           if (f.category === 'turf' && icon !== 'dirt') catMult = 1.0;
           else if (f.category === 'dirt' && icon === 'dirt') catMult = 1.0;
           else if (f.category === icon) catMult = 1.0;
-
           scores[icon] = (scores[icon] ?? 0) + rarityMult * weight * catMult;
         }
+        factors.push({ factor_id: fid, name: f.name, stars: f.stars, type: 'pink', source, category: f.category, contribution: rarityMult * weight });
 
-        factors.push({
-          factor_id: fid, name: f.name, stars: f.stars,
-          type: 'pink', source, category: f.category,
-          contribution: rarityMult * weight,
-        });
-
-      } else if (STYLE_PINKS.has(f.category)) {
+      } else if (STYLE_SET.has(f.category)) {
         const isDominant = f.category === dominantStyle;
         let contribution = 0;
-
         if (isDominant) {
-          // Dominant style pinks use the same rarity table as aptitude pinks and
-          // contribute equally to all distance categories.
           const rarityMult = source === 'own'
             ? (PINK_RARITY_OWN[f.stars] ?? 0)
             : (PINK_RARITY_PARENT[f.stars] ?? 0);
-
           contribution = rarityMult * weight;
-          for (const icon of ICON_CATEGORIES) {
-            scores[icon] = (scores[icon] ?? 0) + contribution;
-          }
+          for (const icon of ICON_CATEGORIES) scores[icon] = (scores[icon] ?? 0) + contribution;
         }
-
-        factors.push({
-          factor_id: fid, name: f.name, stars: f.stars,
-          type: 'pink', source, category: f.category,
-          contribution,
-          secondary_category: isDominant ? 'dominant' : undefined,
-        });
+        factors.push({ factor_id: fid, name: f.name, stars: f.stars, type: 'pink', source, category: f.category, contribution, secondary_category: isDominant ? 'dominant' : undefined });
       }
     }
   }
 }
 
-// White and unique skill factors are scored with a composite multiplier:
-//   baseContrib = stars × weight × pinkMult × specialMult × rarityBonus × overlapBonus × uniqueMult
-//
-// pinkMult    — amplifies skills whose activation tags match the uma's pink aptitudes
-// specialMult — extra weight for specific high-value skills (e.g. Groundwork, Tail Held High)
-// rarityBonus — 3★=1.2, 2★=0.8, 1★=0.6 (on top of the star count already in the formula)
-// overlapBonus— 10% bonus per extra copy of the same white skill across own+parents (stacks)
-// uniqueMult  — 1.2× for character-unique skills (type 3) vs regular white hints (type 4/5)
-//
-// baseContrib is then multiplied per distance category by a catMult (0 or 1) that reflects
-// whether the skill's dist/surf/style tags match that category.
-// Debuff skills bypass all of this and accumulate into debuff_score directly.
+// White and unique skills: composite score formula for quality and breakdown display.
+// baseContrib = stars × weight × pinkMult × specialMult × rarityBonus × overlapBonus × uniqueMult
 function scoreGreensAndWhites(
   factor_ids: number[],
   weight: number,
@@ -241,21 +268,20 @@ function scoreGreensAndWhites(
   dominantStyle: string | null,
   skillRelevance?: Map<number, number>
 ): void {
-  const STYLE_MISMATCH = 0.0;
+  const STYLE_MISMATCH    = 0.0;
   const UNIQUE_MULTIPLIER = 1.2;
 
   for (const fid of factor_ids) {
     const f = lookupFactor(fid);
     if (!f || (f.type !== 'white' && f.type !== 'unique')) continue;
 
-    const uniqueMult  = f.type === 'unique' ? UNIQUE_MULTIPLIER : 1.0;
-    const pinkMult    = pinkMultiplier(f, pinkStars);
-    const specialMult = specialBonus(fid, config);
-    const rarityBonus = f.stars === 3 ? 1.2 : f.stars === 2 ? 0.8 : 0.6;
-    const overlap     = whiteOverlap.get(f.name) ?? 1;
+    const uniqueMult   = f.type === 'unique' ? UNIQUE_MULTIPLIER : 1.0;
+    const pinkMult     = pinkMultiplier(f, pinkStars);
+    const specialMult  = specialBonus(fid, config);
+    const rarityBonus  = f.stars === 3 ? 1.2 : f.stars === 2 ? 0.8 : 0.6;
+    const overlap      = whiteOverlap.get(f.name) ?? 1;
     const overlapBonus = Math.pow(1.1, overlap - 1);
-
-    const baseContrib = f.stars * weight * pinkMult * specialMult * rarityBonus * overlapBonus * uniqueMult;
+    const baseContrib  = f.stars * weight * pinkMult * specialMult * rarityBonus * overlapBonus * uniqueMult;
 
     if (f.is_debuff) {
       debuffScore.value += f.stars * weight;
@@ -263,7 +289,7 @@ function scoreGreensAndWhites(
       whiteTotal.value += baseContrib;
     }
 
-    // Skill-type subscores for display breakdown (not used in category assignment)
+    // Skill-type subscores for breakdown display
     if (f.skill_category) {
       const typeKey = f.is_last_spurt ? 'spurt'
         : f.skill_category === 'Speed Boost' ? 'tSpd'
@@ -275,149 +301,144 @@ function scoreGreensAndWhites(
       if (typeKey) scores[typeKey] = (scores[typeKey] ?? 0) + baseContrib;
     }
 
-    // Type-5 hybrid factors give both a skill hint and a stat boost.
     let statBoostContribution: number | undefined;
     if (f.stat_boost) {
       statBoostContribution = baseContrib * config.whiteStatBoostMultiplier;
       scores[f.stat_boost] = (scores[f.stat_boost] ?? 0) + statBoostContribution;
     }
 
-    // Determine how much baseContrib applies to each distance category.
-    // Generic skills (no tags) apply to everything. Tagged skills get full credit
-    // only for matching categories; dist takes priority over surf, and style gates
-    // the result when present.
-    const hasDist  = (f.dist_cats  ?? []).length > 0;
-    const hasSurf  = (f.surf_cats  ?? []).length > 0;
-    const hasStyle = (f.style_cats ?? []).length > 0;
+    const hasDist   = (f.dist_cats  ?? []).length > 0;
+    const hasSurf   = (f.surf_cats  ?? []).length > 0;
+    const hasStyle  = (f.style_cats ?? []).length > 0;
     const isGeneric = !hasDist && !hasSurf && !hasStyle;
 
-    // Pre-compute style gate so we don't repeat it inside the icon loop
-    const styleGateOpen = !hasStyle
-      || (dominantStyle != null && (f.style_cats ?? []).includes(dominantStyle));
-    const catStyleMult = styleGateOpen ? 1.0 : STYLE_MISMATCH;
+    const styleGateOpen = !hasStyle || (dominantStyle != null && (f.style_cats ?? []).includes(dominantStyle));
+    const catStyleMult  = styleGateOpen ? 1.0 : STYLE_MISMATCH;
 
     for (const icon of ICON_CATEGORIES) {
       let catMult = 0;
-
       if (isGeneric) {
-        catMult = 1.0; // no tags → universally useful
+        catMult = 1.0;
       } else {
-        // Dirt uses mile distance skills as a proxy (no dirt-specific distance tag exists)
         if (hasDist) {
           const distMatch = icon !== 'dirt' && (f.dist_cats ?? []).includes(icon);
           const dirtMatch = icon === 'dirt'  && (f.dist_cats ?? []).includes('mile');
           catMult = (distMatch || dirtMatch) ? 1.0 : 0;
         }
-
-        // Surface match fills in when no distance tag matched
         if (hasSurf && catMult === 0) {
-          const surfMatch = icon === 'dirt'
-            ? (f.surf_cats ?? []).includes('dirt')
-            : (f.surf_cats ?? []).includes('turf');
-          catMult = surfMatch ? 1.0 : 0;
+          catMult = (icon === 'dirt' ? (f.surf_cats ?? []).includes('dirt') : (f.surf_cats ?? []).includes('turf')) ? 1.0 : 0;
         }
-
-        // Style gate: zeroes out any catMult when style doesn't match dominant
-        if (hasStyle && catMult > 0) {
-          catMult *= catStyleMult;
-        } else if (hasStyle && !hasDist && !hasSurf) {
-          catMult = catStyleMult; // style-only tag
-        }
+        if (hasStyle && catMult > 0) catMult *= catStyleMult;
+        else if (hasStyle && !hasDist && !hasSurf) catMult = catStyleMult;
       }
-
-      if (catMult > 0) {
-        scores[icon] = (scores[icon] ?? 0) + baseContrib * catMult;
-      }
+      if (catMult > 0) scores[icon] = (scores[icon] ?? 0) + baseContrib * catMult;
     }
 
     factors.push({
-      factor_id: fid, name: f.name, stars: f.stars,
-      type: f.type, source,
-      category: f.type,
-      contribution: baseContrib,
-      pink_multiplier: pinkMult, special_bonus: specialMult,
-      style_mult: catStyleMult,
-      stat_boost: f.stat_boost ?? undefined,
-      stat_boost_contribution: statBoostContribution,
-      dist_cats: f.dist_cats ?? [],
-      style_cats: f.style_cats ?? [],
-      surf_cats: f.surf_cats ?? [],
-      is_debuff: f.is_debuff ?? false,
-      skill_category: f.skill_category,
-      is_last_spurt: f.is_last_spurt ?? false,
-      relevance: skillRelevance?.get(fid),
+      factor_id: fid, name: f.name, stars: f.stars, type: f.type, source,
+      category: f.type, contribution: baseContrib,
+      pink_multiplier: pinkMult, special_bonus: specialMult, style_mult: catStyleMult,
+      stat_boost: f.stat_boost ?? undefined, stat_boost_contribution: statBoostContribution,
+      dist_cats: f.dist_cats ?? [], style_cats: f.style_cats ?? [], surf_cats: f.surf_cats ?? [],
+      is_debuff: f.is_debuff ?? false, skill_category: f.skill_category,
+      is_last_spurt: f.is_last_spurt ?? false, relevance: skillRelevance?.get(fid),
     });
   }
 }
 
+// Dominant style gates style-tagged white skills in the quality scoring pipeline.
+function determineDominantStyle(ownFactorIds: number[], parentFactorIds: number[][]): string | null {
+  const ownTotals    = new Map<string, number>();
+  const parentTotals = new Map<string, number>();
+
+  for (const fid of ownFactorIds) {
+    const f = lookupFactor(fid);
+    if (!f || f.type !== 'pink' || !f.category || !STYLE_SET.has(f.category)) continue;
+    ownTotals.set(f.category, (ownTotals.get(f.category) ?? 0) + f.stars);
+  }
+  if (ownTotals.size > 0) return [...ownTotals.entries()].sort((a, b) => b[1] - a[1])[0][0];
+
+  for (const ids of parentFactorIds) {
+    for (const fid of ids) {
+      const f = lookupFactor(fid);
+      if (!f || f.type !== 'pink' || !f.category || !STYLE_SET.has(f.category)) continue;
+      parentTotals.set(f.category, (parentTotals.get(f.category) ?? 0) + f.stars);
+    }
+  }
+  if (parentTotals.size > 0) return [...parentTotals.entries()].sort((a, b) => b[1] - a[1])[0][0];
+
+  return null;
+}
+
 // ─── Per-uma scoring ───────────────────────────────────────────────────────────
 
-// Scores a single uma in three passes:
-//   Pass 1 — collect pink star totals (needed as multipliers in pass 3)
-//             and white skill overlap counts (duplicate white skills stack a 10% bonus each)
-//   Pass 2 — score blues (flat bonus to all categories) and pinks (targeted by aptitude/style)
-//   Pass 3 — score white/unique skills (uses pink totals from pass 1)
-//
-// Only direct parents (position_id 10 or 20) contribute; grandparents are ignored.
+// Two parallel pipelines:
+//   Archetype pipeline — computes the effective star vector and archetype label.
+//     Each unit (own + each direct parent) contributes independently; parent vectors
+//     are scaled by config.weights.parent before being summed into the lineage vector.
+//   Quality pipeline   — computes quality_score (blues + whites) and the factor log
+//     used by --breakdown. Uses the same source weights and pink multiplier logic as before.
 function scoreUma(
   uma: RawUma,
   config: ClassifierConfig,
   skillRelevance?: Map<number, number>
 ): ScoredUma {
-  const scores: CategoryScores = {};
+  const scores:     CategoryScores = {};
   const whiteTotal  = { value: 0 };
   const debuffScore = { value: 0 };
   const pinkStars   = new Map<string, number>();
   const factors: FactorContribution[] = [];
 
-  const directParents = uma.succession_chara_array.filter(
-    p => isDirectParent(p.position_id)
-  );
+  const directParents = uma.succession_chara_array.filter(p => isDirectParent(p.position_id));
+  const dominantStyle = determineDominantStyle(uma.factor_id_array, directParents.map(p => p.factor_id_array));
 
-  // Dominant style gates style-pink scoring and style-tagged white skill scoring.
-  // Own style pinks take precedence over parents' style pinks.
-  const dominantStyle = determineDominantStyle(
-    uma.factor_id_array,
-    directParents.map(p => p.factor_id_array)
-  );
+  // ── Archetype pipeline ────────────────────────────────────────────────────────
+  // Compute a unit vector for own factors, then add scaled parent vectors.
+  const lineageVector: ArchetypeVector = {
+    surface:  { ...computeUnitVector(uma.factor_id_array).surface },
+    distance: { ...computeUnitVector(uma.factor_id_array).distance },
+    style:    { ...computeUnitVector(uma.factor_id_array).style },
+  };
+  // Re-compute own vector cleanly to avoid double-read
+  const ownVec = computeUnitVector(uma.factor_id_array);
+  lineageVector.surface  = { ...ownVec.surface  };
+  lineageVector.distance = { ...ownVec.distance };
+  lineageVector.style    = { ...ownVec.style    };
 
-  // Pass 1: collect pink stars for the white-skill pink multiplier
+  for (const parent of directParents) {
+    addVector(lineageVector, scaleVector(computeUnitVector(parent.factor_id_array), config.weights.parent));
+  }
+  const archetype_label = determineArchetypeLabel(lineageVector);
+
+  // ── Quality pipeline ──────────────────────────────────────────────────────────
+  // Pass 1: collect pink stars (white multiplier) and white overlap counts
   collectPinks(uma.factor_id_array, pinkStars);
   for (const parent of directParents) collectPinks(parent.factor_id_array, pinkStars);
 
-  // Pass 1b: count how many times each white skill name appears (own + parents)
-  // so duplicate copies can receive a stacking overlap bonus in pass 3
   const whiteOverlap = new Map<string, number>();
-  const allFactorIds = [
-    ...uma.factor_id_array,
-    ...directParents.flatMap(parent => parent.factor_id_array),
-  ];
-  for (const fid of allFactorIds) {
+  for (const fid of [...uma.factor_id_array, ...directParents.flatMap(p => p.factor_id_array)]) {
     const f = lookupFactor(fid);
-    if (f?.type === 'white') {
-      whiteOverlap.set(f.name, (whiteOverlap.get(f.name) ?? 0) + 1);
-    }
+    if (f?.type === 'white') whiteOverlap.set(f.name, (whiteOverlap.get(f.name) ?? 0) + 1);
   }
 
-  // Pass 2: score blues and pinks
-  scoreBluesAndPinks(uma.factor_id_array, config.weights.own, 'own',
-    scores, factors, config, dominantStyle);
+  // Pass 2: blues + pinks
+  scoreBluesAndPinks(uma.factor_id_array, config.weights.own, 'own', scores, factors, config, dominantStyle);
   for (const parent of directParents) {
-    scoreBluesAndPinks(parent.factor_id_array, config.weights.parent, 'parent',
-      scores, factors, config, dominantStyle);
+    scoreBluesAndPinks(parent.factor_id_array, config.weights.parent, 'parent', scores, factors, config, dominantStyle);
   }
 
-  // Pass 3: score white/unique skills (requires pinkStars and dominantStyle from above)
-  scoreGreensAndWhites(uma.factor_id_array, config.weights.own, 'own',
-    scores, whiteTotal, debuffScore, pinkStars, whiteOverlap,
-    factors, config, dominantStyle, skillRelevance);
+  // Pass 3: whites + uniques
+  scoreGreensAndWhites(uma.factor_id_array, config.weights.own, 'own', scores, whiteTotal, debuffScore, pinkStars, whiteOverlap, factors, config, dominantStyle, skillRelevance);
   for (const parent of directParents) {
-    scoreGreensAndWhites(parent.factor_id_array, config.weights.parent, 'parent',
-      scores, whiteTotal, debuffScore, pinkStars, whiteOverlap,
-      factors, config, dominantStyle, skillRelevance);
+    scoreGreensAndWhites(parent.factor_id_array, config.weights.parent, 'parent', scores, whiteTotal, debuffScore, pinkStars, whiteOverlap, factors, config, dominantStyle, skillRelevance);
   }
 
-  // Build category_factors map
+  // quality_score = blue quality + white total
+  const blueQuality = factors
+    .filter(f => f.type === 'blue')
+    .reduce((sum, f) => sum + f.contribution, 0);
+  const quality_score = blueQuality + whiteTotal.value;
+
   const category_factors: Record<string, FactorContribution[]> = {};
   for (const f of factors) {
     if (f.contribution > 0) {
@@ -439,26 +460,18 @@ function scoreUma(
     white_total: whiteTotal.value,
     debuff_score: debuffScore.value,
     race_score: 0,
+    quality_score,
+    archetype_vector: lineageVector,
+    archetype_label,
     factors,
     category_factors,
     assigned_icon: null,
   };
 }
-// ─── Overall Score for Transfer Candidates ──────────────────────────────────────────────────────────
-
-function overallScore(uma: ScoredUma): number {
-  const distScore = ICON_CATEGORIES
-    .reduce((sum, cat) => sum + (uma.scores[cat] ?? 0), 0);
-  return distScore + uma.white_total * 1.5;
-}
 
 // ─── Heart assignment ──────────────────────────────────────────────────────────
 
-function assignHearts(
-  scored: ScoredUma[],
-  assigned: Map<number, Icon>,
-  config: ClassifierConfig
-): void {
+function assignHearts(scored: ScoredUma[], assigned: Map<number, Icon>, config: ClassifierConfig): void {
   const candidates = scored
     .filter(u => !assigned.has(u.trained_chara_id) && u.white_total >= config.heartWhiteThreshold)
     .sort((a, b) => b.white_total - a.white_total);
@@ -466,7 +479,7 @@ function assignHearts(
   const coveredSkills = new Map<string, number>();
   let heartCount = 0;
   const UPGRADE_THRESHOLD = 1.5;
-  const MIN_SKILL_VALUE = 1.0;
+  const MIN_SKILL_VALUE   = 1.0;
 
   for (const uma of candidates) {
     if (heartCount >= config.keepHeart) break;
@@ -475,24 +488,19 @@ function assignHearts(
     for (const f of uma.factors) {
       if (f.type !== 'white') continue;
       const val = f.contribution ?? 0;
-      const existing = umaSkills.get(f.name) ?? 0;
-      if (val > existing) umaSkills.set(f.name, val);
+      if (val > (umaSkills.get(f.name) ?? 0)) umaSkills.set(f.name, val);
     }
 
     let hasNew = false;
     for (const [name, value] of umaSkills) {
       if (value < MIN_SKILL_VALUE) continue;
       const bestSeen = coveredSkills.get(name) ?? 0;
-      if (bestSeen === 0 || value > bestSeen * UPGRADE_THRESHOLD) {
-        hasNew = true;
-        break;
-      }
+      if (bestSeen === 0 || value > bestSeen * UPGRADE_THRESHOLD) { hasNew = true; break; }
     }
 
     if (hasNew) {
       for (const [name, value] of umaSkills) {
-        const bestSeen = coveredSkills.get(name) ?? 0;
-        if (value > bestSeen) coveredSkills.set(name, value);
+        if (value > (coveredSkills.get(name) ?? 0)) coveredSkills.set(name, value);
       }
       assigned.set(uma.trained_chara_id, 'heart');
       heartCount++;
@@ -502,16 +510,20 @@ function assignHearts(
 
 // ─── Main classifier ───────────────────────────────────────────────────────────
 
+// Umas are grouped by archetype label and ranked within each group by quality_score.
+// The top keepPerCategory umas per group receive the icon derived from their archetype
+// surface/distance. Special icons (clubs, heart, ace, trash) follow the same priority
+// order as before.
 export function classifyRoster(
   umas: RawUma[],
   config: ClassifierConfig,
   skillRelevance?: Map<number, number>
 ): ScoredUma[] {
-  const { keepPerCategory, minCategoryScore, aceScoreThreshold } = config;
+  const { keepPerCategory, aceScoreThreshold } = config;
 
   const scored = umas.map(uma => scoreUma(uma, config, skillRelevance));
 
-  // Compute race scores
+  // Compute race scores when a skill relevance map is provided
   if (skillRelevance) {
     for (const uma of scored) {
       uma.race_score = uma.factors
@@ -522,69 +534,29 @@ export function classifyRoster(
 
   const assigned = new Map<number, Icon>();
 
-  // Debuffers first
+  // Clubs first
   const debuffCandidates = scored
-    .filter(u => !assigned.has(u.trained_chara_id) && u.debuff_score > 0)
+    .filter(u => u.debuff_score > 0)
     .sort((a, b) => b.debuff_score - a.debuff_score)
-    .slice(0, config.keepPerCategory);
+    .slice(0, keepPerCategory);
   for (const uma of debuffCandidates) assigned.set(uma.trained_chara_id, 'clubs');
 
-  // Build preference lists for each uma (categories sorted by score descending)
-  const preferences = new Map<number, Icon[]>();
+  // Group unassigned umas by archetype label; rank each group by quality_score;
+  // cap at keepPerCategory and assign the icon derived from the archetype.
+  const archetypeGroups = new Map<string, ScoredUma[]>();
   for (const uma of scored) {
-    const ranked = ICON_CATEGORIES
-      .filter(icon => (uma.scores[icon] ?? 0) >= minCategoryScore)
-      .sort((a, b) => (uma.scores[b] ?? 0) - (uma.scores[a] ?? 0));
-    preferences.set(uma.trained_chara_id, ranked);
+    if (assigned.has(uma.trained_chara_id)) continue;
+    const label = uma.archetype_label.label;
+    if (!archetypeGroups.has(label)) archetypeGroups.set(label, []);
+    archetypeGroups.get(label)!.push(uma);
   }
 
-  // Track how many umas have been assigned to each category (capped at keepPerCategory)
-  const categoryCounts = new Map<Icon, number>();
-  for (const icon of ICON_CATEGORIES) categoryCounts.set(icon, 0);
-
-  // Preference matching: each round processes all still-unassigned umas in order of
-  // their score in their current top preference. The highest-scoring uma claims a slot
-  // first, then lower-scoring umas follow. If a category is full, an uma skips it and
-  // tries its next preference in the following round. This repeats until no uma can be
-  // placed. The result is roughly "best uma gets their first choice; others compete for
-  // what's left."
-  const prefCursor = new Map<number, number>(); // trained_chara_id → index into preference list
-  for (const uma of scored) prefCursor.set(uma.trained_chara_id, 0);
-
-  let anyAssigned = true;
-  while (anyAssigned) {
-    anyAssigned = false;
-
-    // Process in descending order of each uma's score for their current top preference,
-    // so stronger candidates win contested slots before weaker ones even try.
-    const roundPool = scored
-      .filter(u => !assigned.has(u.trained_chara_id))
-      .sort((a, b) => {
-        const aPrefs = preferences.get(a.trained_chara_id) ?? [];
-        const bPrefs = preferences.get(b.trained_chara_id) ?? [];
-        const aIcon  = aPrefs[prefCursor.get(a.trained_chara_id) ?? 0];
-        const bIcon  = bPrefs[prefCursor.get(b.trained_chara_id) ?? 0];
-        const aScore = aIcon ? (a.scores[aIcon] ?? 0) : 0;
-        const bScore = bIcon ? (b.scores[bIcon] ?? 0) : 0;
-        return bScore - aScore;
-      });
-
-    for (const uma of roundPool) {
-      const prefs = preferences.get(uma.trained_chara_id) ?? [];
-      let cursor = prefCursor.get(uma.trained_chara_id) ?? 0;
-
-      // Advance past any categories that are already full
-      while (cursor < prefs.length && (categoryCounts.get(prefs[cursor]) ?? 0) >= keepPerCategory) {
-        cursor++;
-      }
-      prefCursor.set(uma.trained_chara_id, cursor);
-
-      if (cursor >= prefs.length) continue; // all preferred categories are full
-
-      const icon = prefs[cursor];
-      assigned.set(uma.trained_chara_id, icon);
-      categoryCounts.set(icon, (categoryCounts.get(icon) ?? 0) + 1);
-      anyAssigned = true;
+  for (const [, group] of archetypeGroups) {
+    group.sort((a, b) => b.quality_score - a.quality_score);
+    const icon = archetypeToIcon(group[0].archetype_label);
+    if (!icon) continue; // turf with no distance signal — falls through to ace/skip
+    for (let i = 0; i < Math.min(keepPerCategory, group.length); i++) {
+      assigned.set(group[i].trained_chara_id, icon);
     }
   }
 
@@ -598,16 +570,14 @@ export function classifyRoster(
     .slice(0, config.keepAce);
   for (const uma of aceCandidates) assigned.set(uma.trained_chara_id, 'ace');
 
-  // Trash — lowest overall-scoring umas that still haven't been placed
+  // Trash: lowest quality_score umas not yet assigned
   const trashCandidates = scored
     .filter(u => !assigned.has(u.trained_chara_id))
-    .sort((a, b) => overallScore(a) - overallScore(b));
-
+    .sort((a, b) => a.quality_score - b.quality_score);
   for (let i = 0; i < Math.min(config.numTrash, trashCandidates.length); i++) {
     assigned.set(trashCandidates[i].trained_chara_id, 'trash');
   }
 
-  // Final assignment — null means unlisted (not great, but not bad enough to trash)
   for (const uma of scored) {
     uma.assigned_icon = assigned.get(uma.trained_chara_id) ?? 'skip';
   }

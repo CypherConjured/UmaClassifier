@@ -85,15 +85,37 @@ export interface FactorContribution {
 
 export type CategoryScores = Record<string, number>;
 
+// ─── Archetype ────────────────────────────────────────────────────────────────
+
+// Per-dimension effective star values derived from the lineage-aggregated formula:
+//   effective_stars(cat) = pink_stars(cat) + (white_stars_in_cat / white_stars_total) × 6
+export interface ArchetypeVector {
+  surface:  Record<string, number>; // 'turf' | 'dirt'
+  distance: Record<string, number>; // 'sprint' | 'mile' | 'mid' | 'long'
+  style:    Record<string, number>; // 'front' | 'pace' | 'late' | 'end'
+}
+
+// Dominant value per dimension; derived from the lineage vector.
+// 'Any' means no signal exists in that dimension.
+export interface ArchetypeLabel {
+  surface:  string; // 'turf' | 'dirt'
+  distance: string; // 'sprint' | 'mile' | 'mid' | 'long' | 'Any'
+  style:    string; // 'front' | 'pace' | 'late' | 'end' | 'Any'
+  label:    string; // e.g. "late × dirt/mile"
+}
+
 export interface ScoredUma {
   trained_chara_id: number;
   card_id: number;
   rank_score: number;
   is_locked: boolean;
-  scores: CategoryScores;   // score per icon category
-  white_total: number;      // raw total white stars (own + weighted parents)
+  scores: CategoryScores;        // type/stat subscores for breakdown display
+  white_total: number;
   debuff_score: number;
   race_score: number;
+  quality_score: number;         // blues + whites; used for within-archetype ranking and trash
+  archetype_vector: ArchetypeVector;
+  archetype_label: ArchetypeLabel;
   factors: FactorContribution[];
   category_factors: Record<string, FactorContribution[]>;
   assigned_icon: Icon | null;
