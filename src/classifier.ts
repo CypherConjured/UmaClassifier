@@ -580,7 +580,7 @@ export function classifyRoster(
   }
 
   for (const uma of scored) {
-    uma.assigned_icon = assigned.get(uma.trained_chara_id) ?? 'skip';
+    uma.assigned_icon = assigned.get(uma.trained_chara_id) ?? (uma.is_locked ? 'unlock' : 'skip');
   }
 
   return scored;

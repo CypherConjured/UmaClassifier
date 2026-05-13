@@ -46,7 +46,7 @@ export interface RawUma {
 
 // ─── Icon / favorite mark ─────────────────────────────────────────────────────
 
-export type Icon = 'skip'
+export type Icon = 'skip' | 'unlock'
   | 'dirt'      // 👟 dirt shoe
   | 'sprint'    // 👟 sprint shoe
   | 'mile'      // 👟 mile shoe

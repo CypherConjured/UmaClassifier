@@ -11,9 +11,7 @@ import { buildSkillRelevanceMap, getRaceMap, lookupCharName } from './loader.ts'
 import type { ClassifierConfig, Icon, RaceEnvironment, ScoredUma } from './types.ts';
 import { DEFAULT_CONFIG } from './types.ts';
 
-const C = {
-  reset:   '\x1b[0m',
-  bold:    '\x1b[1m',
+const FG = {
   blue:    '\x1b[34m',
   cyan:    '\x1b[36m',
   magenta: '\x1b[35m',
@@ -23,24 +21,49 @@ const C = {
   gray:    '\x1b[90m',
   white:   '\x1b[97m',
 };
-const c = (color: string, text: string) => `${color}${text}${C.reset}`;
+
+const BG = {
+  blue:    '\x1b[44m',
+  cyan:    '\x1b[46m',
+  magenta: '\x1b[45m',
+  green:   '\x1b[42m',
+  yellow:  '\x1b[43m',
+  red:     '\x1b[41m',
+  gray:    '\x1b[100m',
+  white:   '\x1b[107m',
+  brown:   '\x1b[43m',
+};
+
+const FMT = {
+  reset:   '\x1b[0m',
+  bold:    '\x1b[1m',
+  dim:     '\x1b[2m',
+  italic:  '\x1b[3m',
+  underline: '\x1b[4m',
+};
+
+// For backwards compatibility with existing C references
+const C = FG;
+
+const c = (color: string, text: string) => `${color}${text}${FMT.reset}`;
 
 const STYLE_PINKS_DISPLAY = new Set(['front', 'pace', 'late', 'end']);
 const ICON_DISPLAY: Record<Icon, string> = {
   skip: 'Unlisted (skip)',
-  dirt: '👟 Dirt',
-  sprint: '👟 Sprint',
-  mile: '👟 Mile',
-  mid: '👟 Mid',
-  long: '👟 Long',
-  heart: '♥  Heart (skill)',
-  clubs: '♣  Debuffer',
-  ace: '♠  Ace',
+  unlock: 'Unlisted (unlock)',
+  sprint: c(BG.magenta,'👟 ')+ 'Sprint',
+  mile: c(BG.green, '👟 ') + 'Mile',
+  mid: c(BG.yellow, '👟 ') + 'Mid',
+  long: c(BG.blue, '👟 ') + 'Long',
+  dirt: c(BG.red, '👟 ') + 'Dirt',
+  heart: c(FG.red, ' ♥ ') + 'Heart (skill)',
+  clubs: ' ♣ Debuffer',
+  ace: ' ' +c(BG.white, '♠') + ' Ace',
   trash: '🗑️  Transfer',
 };
 
 const ICON_ORDER: Icon[] = [
-  'dirt', 'sprint', 'mile', 'mid', 'long',
+  'sprint', 'mile', 'mid', 'long', 'dirt', 
   'heart', 'clubs', 'ace', 'trash','skip'
 ];
 
@@ -158,23 +181,26 @@ function parseArgs() {
 // Labels are exactly 2 ASCII chars — no emoji — so terminal column math is exact.
 
 const GRID_ICON: Record<Icon, { label: string; color: string }> = {
-  dirt:   { label: 'DT', color: C.yellow  },
-  sprint: { label: 'SP', color: C.cyan    },
-  mile:   { label: 'MI', color: C.magenta },
-  mid:    { label: 'MD', color: C.green   },
-  long:   { label: 'LG', color: C.blue    },
-  heart:  { label: 'HT', color: C.red     },
-  clubs:  { label: 'CB', color: C.green   },
-  ace:    { label: 'AC', color: C.white   },
-  trash:  { label: 'TR', color: C.gray    },
-  skip:   { label: '--', color: C.gray    },
+  dirt:   { label: 'DT', color: BG.red  },
+  sprint: { label: 'SP', color: BG.magenta },
+  mile:   { label: 'MI', color: BG.green   },
+  mid:    { label: 'MD', color: BG.yellow  },
+  long:   { label: 'LG', color: BG.blue    },
+  heart:  { label: 'HT', color: FG.red     },
+  clubs:  { label: 'CB', color: FG.white   },
+  ace:    { label: 'AC', color: BG.white   },
+  trash:  { label: 'TR', color: BG.gray    },
+  unlock: { label: 'xx', color: FG.red     },
+  skip:   { label: '--', color: FG.gray    },
 };
 
 const GRID_COLS     = 5;
 const GRID_MAX_ROWS = 50;
-const GRID_NAME_W   = 12; // name chars per cell
-// Cell layout (visual): [XX](4) + space(1) + rank(5) + space(1) + name(12) = 23 chars
-const GRID_CELL_W   = 23;
+const GRID_INFO_W   = 13; // name chars per cell
+const GRID_ANSI_W  = 5; // ANSI color codes per cell (not fixed, but roughly estimated for padding purposes)
+// Cell top layout (visual): [XX](4) + space(1) + name(12) + border(1) = 18 chars
+// Cell bot layout (visual): score(4) + space(1) + rank(5) + space(1) + name(12) + border(1) = 18 chars
+const GRID_CELL_W   = GRID_ANSI_W + GRID_INFO_W; // total chars per cell including ANSI codes and borders
 
 function printGrid(results: ScoredUma[]): void {
   const sorted = [...results]
@@ -188,21 +214,33 @@ function printGrid(results: ScoredUma[]): void {
   console.log('═══════════════════════════════════════════════════════════\n');
 
   for (let row = 0; row < rows; row++) {
-    const parts: string[] = [];
+    const topParts: string[] = [];
+    const botParts: string[] = [];
+    const border: string[] = [];
     for (let col = 0; col < GRID_COLS; col++) {
       const uma = sorted[row * GRID_COLS + col];
-      if (!uma) { parts.push(' '.repeat(GRID_CELL_W)); continue; }
+      if (!uma) break;
+      // if (!uma) { topParts.push(' '.repeat(GRID_CELL_W));
+      //   botParts.push(' '.repeat(GRID_CELL_W));
+      //   border.push(' '.repeat(GRID_CELL_W));
+      //   continue;
+      // }
 
-      const gi   = GRID_ICON[uma.assigned_icon ?? 'skip'];
-      const rs   = String(uma.rank_score).padStart(5);
-      const name = lookupCharName(uma.card_id).slice(0, GRID_NAME_W).padEnd(GRID_NAME_W);
+      const gi   = GRID_ICON[uma.assigned_icon ?? 'skip']; // we don't actually have to check assigned_icon presence here because the classifier guarantees it will be set to at least 'skip'
+      const rs   = String(uma.rank_score).padEnd(GRID_INFO_W-1);
+      const name = lookupCharName(uma.card_id).slice(0, GRID_INFO_W).padEnd(GRID_INFO_W);
 
-      // ANSI codes are invisible — build padding from the raw visual string,
-      // then substitute the colored bracket in the output.
-      // Raw visual: [XX] NNNNN Name________ = 4+1+5+1+12 = 23 chars exactly.
-      parts.push(`${c(gi.color, `[${gi.label}]`)} ${rs} ${name}`);
+      topParts.push(`${c(gi.color, `[${gi.label}]`)} ${name}`);
+      if(uma.assigned_icon === 'clubs')
+        botParts.push(`${c(FMT.italic, uma.debuff_score.toPrecision(3).padStart(4))}d ${rs}`);
+      else
+        botParts.push(`${c(FMT.italic, uma.quality_score.toPrecision(3).padStart(4))}q ${rs}`);
+      border.push('-'.repeat(GRID_CELL_W));
     }
-    console.log(parts.join('  '));
+
+    console.log('|' + topParts.join(' | ') + ' |' );
+    console.log('|' + botParts.join(' | ') + ' |' );
+    console.log('|' + border.join('-|-') + '-|' );
   }
 
   console.log(`\n  ${sorted.length} umas\n`);
@@ -244,10 +282,10 @@ function allScores(uma: ScoredUma): string {
   }
 
   const parts: string[] = [];
-  if (styleParts.length) parts.push(c(C.red,     styleParts.join(' ')));
-  if (surfParts.length)  parts.push(c(C.cyan,    surfParts.join(' ')));
-  if (distParts.length)  parts.push(c(C.magenta, distParts.join(' ')));
-  if (whites.length)     parts.push(c(C.yellow,  whites.join(' ')));
+  if (styleParts.length) parts.push(c(FG.red,     styleParts.join(' ')));
+  if (surfParts.length)  parts.push(c(FG.cyan,    surfParts.join(' ')));
+  if (distParts.length)  parts.push(c(FG.magenta, distParts.join(' ')));
+  if (whites.length)     parts.push(c(FG.yellow,  whites.join(' ')));
   return parts.join('  ');
 }
 
@@ -325,7 +363,7 @@ function printTable(
     for (const uma of visibleUmas.sort((a, b) => b.quality_score - a.quality_score)) {
       const lock      = uma.is_locked ? '🔒' : '  ';
       const name      = lookupCharName(uma.card_id).padEnd(20).slice(0, 20);
-      const archLabel = c(C.cyan, uma.archetype_label.label.padEnd(22).slice(0, 22));
+      const archLabel = c(FG.cyan, uma.archetype_label.label.padEnd(22).slice(0, 22));
       const qStr      = icon === 'clubs'
         ? `d:${uma.debuff_score.toFixed(1)}`.padEnd(10)
         : `q:${uma.quality_score.toFixed(1)}`.padEnd(10);
@@ -373,7 +411,7 @@ function printTable(
             const src   = f.source === 'own' ? 'own' : 'par';
             const stars = ('★'.repeat(f.stars) + '☆'.repeat(3 - f.stars)).padEnd(3);
             const name  = f.name.padEnd(12);
-            const pen   = f.contribution < 0 ? c(C.red, `PENALTY`) : '';
+            const pen   = f.contribution < 0 ? c(FG.red, `PENALTY`) : '';
             console.log(`       ${src}  ${stars}  ${name}  → ${f.contribution.toFixed(2)} ${pen}`);
           }
         }
@@ -388,7 +426,7 @@ function printTable(
             const stars = ('★'.repeat(f.stars) + '☆'.repeat(3 - f.stars)).padEnd(3);
             const name  = f.name.padEnd(14);
             const tag   = `→ ${f.category}`;
-            const pen   = f.contribution < 0 ? c(C.red, 'PENALTY') : '';
+            const pen   = f.contribution < 0 ? c(FG.red, 'PENALTY') : '';
             console.log(`       ${src}  ${stars}  ${name}  ${tag}  ${f.contribution.toFixed(2)} ${pen}`);
           }
           console.log();
@@ -432,14 +470,14 @@ function printTable(
             const styleMult = w.style_mult ?? 1.0;
             const isStyleGated = styleMult === 0;
             const pm  = isStyleGated
-              ? c(C.gray, 'pink:0.0x ')
+              ? c(FG.gray, 'pink:0.0x ')
               : (w.pink_multiplier ?? 1) > 1
                 ? `pink:${w.pink_multiplier!.toFixed(2)}x` : '----------';
             const sb  = (w.special_bonus ?? 1) > 1
               ? `bonus:${w.special_bonus!.toFixed(1)}x` : '----------';
             const rawContrib = w.stat_boost ? (w.stat_boost_contribution ?? w.contribution) : w.contribution;
             const effectiveContrib = rawContrib * styleMult;
-            const statTag = (!isStyleGated && w.stat_boost) ? c(C.yellow, `[stat:${w.stat_boost}]`) : '';
+            const statTag = (!isStyleGated && w.stat_boost) ? c(FG.yellow, `[stat:${w.stat_boost}]`) : '';
             const tags = [
               ...(w.dist_cats  ?? []).map(d => `[${d}]`),
               ...(w.style_cats ?? []).map(s => `[${s}]`),
@@ -516,6 +554,5 @@ if (raceId !== null) {
 
 const results = classifyRoster(raw as any, config, skillRelevance);
 
-printTable(results, config, showBreakdown, minRank, maxRank);
-
-if (showGrid) printGrid(results);
+if (showGrid) printGrid(results); 
+else printTable(results, config, showBreakdown, minRank, maxRank);
