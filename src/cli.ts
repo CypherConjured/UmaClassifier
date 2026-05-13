@@ -44,6 +44,21 @@ const ICON_ORDER: Icon[] = [
   'heart', 'clubs', 'ace', 'trash','skip'
 ];
 
+const WEATHER_MAP: Record<string, number> = {
+  sunny: 1, sun: 1,
+  cloudy: 2, cloud: 2,
+  rainy: 3, rain: 3,
+  snowy: 4, snow: 4,
+};
+
+const GROUND_COND_MAP: Record<string, number> = {
+  firm: 1, good: 2, soft: 3, heavy: 4,
+};
+
+const SEASON_MAP: Record<string, number> = {
+  spring: 1, summer: 2, fall: 3, autumn: 3, winter: 4,
+};
+
 function parseSingleArg(args: string[], i: number, type: 'int' | 'float', usage: string): number {
   const val = args[i + 1];
   const parsed = type === 'int' ? parseInt(val) : parseFloat(val);
@@ -54,12 +69,27 @@ function parseSingleArg(args: string[], i: number, type: 'int' | 'float', usage:
   return parsed;
 }
 
+function parseNamedArg(args: string[], i: number, map: Record<string, number>, flag: string, usage: string): number {
+  const raw = args[i + 1]?.toLowerCase();
+  const val = map[raw] ?? parseInt(raw);
+  if (!raw || isNaN(val)) {
+    console.error(`Usage: ${flag} <${usage}>`);
+    process.exit(1);
+  }
+  return val;
+}
+
 function parseArgs() {
   const args = process.argv.slice(2);
   let jsonPath = '';
   let showBreakdown = false;
+  let showGrid = false;
   let raceId: number | null = null;
-  let rankFilter: number | null = null;
+  let minRank: number | null = null;
+  let maxRank: number | null = null;
+  let weatherVal: number | null = null;
+  let groundCondVal: number | null = null;
+  let seasonVal: number | null = null;
   const config: ClassifierConfig = { ...DEFAULT_CONFIG };
 
 
@@ -75,13 +105,27 @@ function parseArgs() {
       case '--keep-heart':      config.keepHeart           = parseSingleArg(args, i++, 'int',   '--keep-heart {N}     Max umas to assign heart icon (default: ' + DEFAULT_CONFIG.keepHeart + ')'); break;
       case '--trash':           config.numTrash            = parseSingleArg(args, i++, 'int',   '--trash {N}          Number of umas to consider for transfer. (default: ' + DEFAULT_CONFIG.numTrash + ')'); break;
       case '--race':            raceId                     = parseSingleArg(args, i++, 'int',   '--race {ID}          Target race ID for parent recommendations (example: --race 6019)'); break;
-      case '--rank':            rankFilter                 = parseSingleArg(args, i++, 'int',   '--rank #             Filter output to umas with this rank score'); break;
-      case '--breakdown':       showBreakdown              = true; break;
+      case '--min-rank':        minRank                    = parseSingleArg(args, i++, 'int',   '--min-rank #         Show only umas at or above this rank score'); break;
+      case '--max-rank':        maxRank                    = parseSingleArg(args, i++, 'int',   '--max-rank #         Show only umas at or below this rank score'); break;
+      case '--weather':         weatherVal                 = parseNamedArg(args, i++, WEATHER_MAP,    '--weather',    'sunny|cloudy|rainy|snowy'); break;
+      case '--ground-cond':     groundCondVal              = parseNamedArg(args, i++, GROUND_COND_MAP,'--ground-cond','firm|good|soft|heavy'); break;
+      case '--season':          seasonVal                  = parseNamedArg(args, i++, SEASON_MAP,     '--season',     'spring|summer|fall|winter'); break;
+      case '--breakdown': {
+        showBreakdown = true;
+        const next = args[i + 1];
+        if (next && !next.startsWith('--') && !isNaN(parseInt(next))) {
+          minRank = parseInt(next);
+          maxRank = parseInt(next);
+          i++;
+        }
+        break;
+      }
+      case '--grid':            showGrid                   = true; break;
       default:
         if (!args[i].startsWith('--')) jsonPath = args[i];
       }
     }
-    
+
     if (!jsonPath) {
       console.error([
         'Usage: npm run cli -- <path-to-json> [options]',
@@ -96,13 +140,72 @@ function parseArgs() {
         '  --keep-heart N    Max umas assigned heart icon        (default: ' + DEFAULT_CONFIG.keepHeart + ')',
         '  --trash N         Number of umas to transfer          (default: ' + DEFAULT_CONFIG.numTrash + ')',
         '  --race ID         Target race ID for recommendations  (example: 6019)',
-        '  --rank #          Filter output to umas with this rank score',
-        '  --breakdown       Show a breakdown of scores (highly recommended to limit output with other options)'
+        '  --weather W       Race weather condition (sunny|cloudy|rainy|snowy)  — requires --race',
+        '  --ground-cond G   Ground condition (firm|good|soft|heavy)           — requires --race',
+        '  --season S        Race season (spring|summer|fall|winter)            — requires --race',
+        '  --min-rank #      Show only umas at or above this rank score',
+        '  --max-rank #      Show only umas at or below this rank score',
+        '  --breakdown [N]   Show score breakdown; optional exact rank score N limits output to that uma',
+        '  --grid            Print a 5-column veterans grid sorted by rank score',
     ].join('\n'));
     process.exit(1);
   }
 
-  return { jsonPath, config, showBreakdown, raceId, rankFilter };
+  return { jsonPath, config, showBreakdown, showGrid, raceId, minRank, maxRank, weatherVal, groundCondVal, seasonVal };
+}
+
+// ─── Icon color/label config for grid display ─────────────────────────────────
+// Labels are exactly 2 ASCII chars — no emoji — so terminal column math is exact.
+
+const GRID_ICON: Record<Icon, { label: string; color: string }> = {
+  dirt:   { label: 'DT', color: C.yellow  },
+  sprint: { label: 'SP', color: C.cyan    },
+  mile:   { label: 'MI', color: C.magenta },
+  mid:    { label: 'MD', color: C.green   },
+  long:   { label: 'LG', color: C.blue    },
+  heart:  { label: 'HT', color: C.red     },
+  clubs:  { label: 'CB', color: C.green   },
+  ace:    { label: 'AC', color: C.white   },
+  trash:  { label: 'TR', color: C.gray    },
+  skip:   { label: '--', color: C.gray    },
+};
+
+const GRID_COLS     = 5;
+const GRID_MAX_ROWS = 50;
+const GRID_NAME_W   = 12; // name chars per cell
+// Cell layout (visual): [XX](4) + space(1) + rank(5) + space(1) + name(12) = 23 chars
+const GRID_CELL_W   = 23;
+
+function printGrid(results: ScoredUma[]): void {
+  const sorted = [...results]
+    .sort((a, b) => b.rank_score - a.rank_score)
+    .slice(0, GRID_COLS * GRID_MAX_ROWS);
+
+  const rows = Math.ceil(sorted.length / GRID_COLS);
+
+  console.log('\n═══════════════════════════════════════════════════════════');
+  console.log('  VETERANS GRID  (sorted by rank score, 5 columns)');
+  console.log('═══════════════════════════════════════════════════════════\n');
+
+  for (let row = 0; row < rows; row++) {
+    const parts: string[] = [];
+    for (let col = 0; col < GRID_COLS; col++) {
+      const uma = sorted[row * GRID_COLS + col];
+      if (!uma) { parts.push(' '.repeat(GRID_CELL_W)); continue; }
+
+      const gi   = GRID_ICON[uma.assigned_icon ?? 'skip'];
+      const rs   = String(uma.rank_score).padStart(5);
+      const name = lookupCharName(uma.card_id).slice(0, GRID_NAME_W).padEnd(GRID_NAME_W);
+
+      // ANSI codes are invisible — build padding from the raw visual string,
+      // then substitute the colored bracket in the output.
+      // Raw visual: [XX] NNNNN Name________ = 4+1+5+1+12 = 23 chars exactly.
+      parts.push(`${c(gi.color, `[${gi.label}]`)} ${rs} ${name}`);
+    }
+    console.log(parts.join('  '));
+  }
+
+  console.log(`\n  ${sorted.length} umas\n`);
 }
 
 // Shows the archetype vector top values and white skill type breakdown.
@@ -152,7 +255,8 @@ function printTable(
   results: ScoredUma[],
   config: ClassifierConfig,
   showBreakdown: boolean,
-  rankFilter: number | null
+  minRank: number | null,
+  maxRank: number | null
 ) {
   // Group by icon
   const groups = new Map<Icon, ScoredUma[]>();
@@ -186,6 +290,7 @@ function printTable(
       console.log(`  ${lock} rs:${uma.rank_score}  ${name}  race:${uma.race_score.toFixed(1)}  whites:${uma.white_total.toFixed(1)}  [${icon}]`);
 
       if (showBreakdown && uma.factors.length > 0) {
+        console.log(`       ── Race ──  race:${uma.race_score.toFixed(1)}  (whites:${uma.white_total.toFixed(1)})`);
         const sorted = [...uma.factors]
           .filter(w => (w as any).relevance > 0)
           .sort((a, b) => {if(b.contribution == undefined || a.contribution == undefined) return 0; else return (b.contribution - a.contribution)});
@@ -208,23 +313,34 @@ function printTable(
     const umas = groups.get(icon)!;
     if (umas.length === 0) continue;
 
+    const visibleUmas = umas.filter(u =>
+      (minRank === null || u.rank_score >= minRank) &&
+      (maxRank === null || u.rank_score <= maxRank)
+    );
+    if (visibleUmas.length === 0) continue;
+
     console.log(`${ICON_DISPLAY[icon]}  (${umas.length})`);
     console.log('─'.repeat(60));
 
-    for (const uma of umas.sort((a, b) => b.quality_score - a.quality_score)) {
-      if (rankFilter !== null && uma.rank_score !== rankFilter) continue;
+    for (const uma of visibleUmas.sort((a, b) => b.quality_score - a.quality_score)) {
       const lock      = uma.is_locked ? '🔒' : '  ';
       const name      = lookupCharName(uma.card_id).padEnd(20).slice(0, 20);
       const archLabel = c(C.cyan, uma.archetype_label.label.padEnd(22).slice(0, 22));
-      const qStr      = `q:${uma.quality_score.toFixed(1)}`.padEnd(10);
+      const qStr      = icon === 'clubs'
+        ? `d:${uma.debuff_score.toFixed(1)}`.padEnd(10)
+        : `q:${uma.quality_score.toFixed(1)}`.padEnd(10);
       const raceStr   = uma.race_score > 0 ? `race:${uma.race_score.toFixed(1)}  ` : '';
       const scores    = allScores(uma);
       console.log(` ${lock} rs:${uma.rank_score}  ${name}  ${archLabel}  ${qStr}${raceStr}${scores}`);
 
       if (showBreakdown) {
-        // Quality score composition
-        const blueContrib = uma.quality_score - uma.white_total;
-        console.log(`       ── Quality ──  q:${uma.quality_score.toFixed(1)}  (blues:${blueContrib.toFixed(1)}  whites:${uma.white_total.toFixed(1)})`);
+        // Score composition header — debuff umas show d: as primary metric
+        if (icon === 'clubs') {
+          console.log(`       ── Debuff ──  d:${uma.debuff_score.toFixed(1)}  (q:${uma.quality_score.toFixed(1)}  whites:${uma.white_total.toFixed(1)})`);
+        } else {
+          const blueContrib = uma.quality_score - uma.white_total;
+          console.log(`       ── Quality ──  q:${uma.quality_score.toFixed(1)}  (blues:${blueContrib.toFixed(1)}  whites:${uma.white_total.toFixed(1)})`);
+        }
 
         // Archetype vector — all dimension values, winner marked with *
         const av = uma.archetype_vector;
@@ -354,7 +470,7 @@ function printTable(
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-const { jsonPath, config, showBreakdown, raceId, rankFilter } = parseArgs();
+const { jsonPath, config, showBreakdown, showGrid, raceId, minRank, maxRank, weatherVal, groundCondVal, seasonVal } = parseArgs();
 
 let raw: unknown;
 try {
@@ -372,18 +488,34 @@ if (!Array.isArray(raw)) {
 console.log(`Loaded ${raw.length} umas from ${jsonPath}`);
 console.log(`Config: keep-archetype=${config.keepPerArchetype}, max-icon=${config.maxPerIcon}, min-score=${config.minCategoryScore}, heart-threshold=${config.heartWhiteThreshold}, ace-threshold=${config.aceScoreThreshold}`);
 
+const WEATHER_LABEL: Record<number, string>    = { 1: 'Sunny', 2: 'Cloudy', 3: 'Rainy', 4: 'Snowy' };
+const GROUND_COND_LABEL: Record<number, string> = { 1: 'Firm', 2: 'Good', 3: 'Soft', 4: 'Heavy' };
+const SEASON_LABEL: Record<number, string>      = { 1: 'Spring', 2: 'Summer', 3: 'Fall', 4: 'Winter' };
+
 let skillRelevance: Map<number, number> | undefined;
 if (raceId !== null) {
-  const env: RaceEnvironment = { raceId };
+  const env: RaceEnvironment = {
+    raceId,
+    ...(weatherVal    != null && { weather:         weatherVal    }),
+    ...(groundCondVal != null && { groundCondition: groundCondVal }),
+    ...(seasonVal     != null && { season:          seasonVal     }),
+  };
   skillRelevance = buildSkillRelevanceMap(env) ?? undefined;
   if (!skillRelevance) {
     console.error(`Unknown race ID: ${raceId}`);
     process.exit(1);
   }
   const race = getRaceMap().get(raceId)!;
-  console.log(`Target race: ${race.raceName} — ${race.distanceCategory} ${race.groundName} @ ${race.trackName}`);
+  const condParts: string[] = [];
+  if (weatherVal    != null) condParts.push(WEATHER_LABEL[weatherVal]);
+  if (groundCondVal != null) condParts.push(GROUND_COND_LABEL[groundCondVal]);
+  if (seasonVal     != null) condParts.push(SEASON_LABEL[seasonVal]);
+  const condStr = condParts.length ? `  [${condParts.join(', ')}]` : '';
+  console.log(`Target race: ${race.raceName} — ${race.distanceCategory} ${race.groundName} @ ${race.trackName}${condStr}`);
 }
 
 const results = classifyRoster(raw as any, config, skillRelevance);
 
-printTable(results, config, showBreakdown, rankFilter);
+printTable(results, config, showBreakdown, minRank, maxRank);
+
+if (showGrid) printGrid(results);

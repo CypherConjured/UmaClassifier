@@ -38,6 +38,7 @@ export interface FactorEntry {
   category?: string;
   stars: number;
   name: string;
+  skill_name?: string;  // resolved skill name for hint-type factors (type 5); equals name for type 4
   stat_boost?: string | null;
   style_cats?: string[];
   dist_cats?: string[];
@@ -131,6 +132,7 @@ function buildFactorMap(factors: RawFactor[], skillByName: Map<string, RawSkill>
         type: 'white',
         stars,
         name,
+        skill_name: hintName ?? name,
         stat_boost: type === 5 ? extractStatBoost(description) : null,
         style_cats: tags.filter(t => t in STYLE_TAG).map(t => STYLE_TAG[t]),
         dist_cats:  tags.filter(t => t in DIST_TAG).map(t => DIST_TAG[t]),
@@ -253,7 +255,7 @@ export function buildSkillRelevanceMap(
   for (const [fid, entry] of factorMap) {
     if (entry.type !== 'white') continue;
 
-    const skill = skillByName.get(entry.name);
+    const skill = skillByName.get(entry.skill_name ?? entry.name);
     if (!skill) {
       skillMap.set(fid, 0.5); // unknown skill — generic relevance
       continue;
@@ -363,22 +365,31 @@ function matchesEnvironment(
   const FIELD_MAP: Record<string, keyof RaceEnvironment> = {
     'ground_condition': 'groundCondition',
     'weather':          'weather',
+    'season':           'season',
     'distance_type':    'distanceType',
     'ground_type':      'groundType',
     'running_style':    'runningStyle',
     'track_id':         'trackId',
   };
 
+  // Group checks by field — multiple values for the same field are OR conditions
+  // (e.g. "season==1@season==5" means "season is spring OR special-spring").
+  const fieldValues = new Map<string, number[]>();
+  for (const { field, value } of checks) {
+    if (!fieldValues.has(field)) fieldValues.set(field, []);
+    fieldValues.get(field)!.push(value);
+  }
+
   let matched = 0;
   let mismatched = 0;
   let unknown = 0;
 
-  for (const { field, value } of checks) {
+  for (const [field, values] of fieldValues) {
     const envKey = FIELD_MAP[field];
     if (!envKey) { unknown++; continue; }
     const envVal = env[envKey];
     if (envVal == null) { unknown++; continue; }
-    if (envVal === value) { matched++; } else { mismatched++; }
+    if (values.includes(envVal)) { matched++; } else { mismatched++; }
   }
 
   if (mismatched > 0) return 'mismatch';

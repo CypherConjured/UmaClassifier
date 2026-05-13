@@ -129,6 +129,7 @@ export interface RaceEnvironment {
   groundType?: number;     // 1=Turf, 2=Dirt
   groundCondition?: number;// 1=Firm, 2=Good, 3=Soft, 4=Heavy
   weather?: number;        // 1=Sunny, 2=Cloudy, 3=Rainy, 4=Snowy
+  season?: number;         // 1=Spring, 2=Summer, 3=Fall, 4=Winter
   trackId?: number;        // specific course ID
   runningStyle?: number;   // 1=Front, 2=Pace, 3=Late, 4=End
 }
