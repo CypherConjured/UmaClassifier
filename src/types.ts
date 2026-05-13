@@ -155,8 +155,7 @@ export interface ClassifierConfig {
   aceScoreThreshold: number;
   // All scoring weights and multipliers
   weights: {
-    own: number;
-    parent: number; // position_id 10 or 20 only; grandparents are ignored
+    parent: number; // archetype vector scale for direct parents (position_id 10 or 20 only; grandparents are ignored)
     blue: { own: Record<number, number>; parent: Record<number, number> };
     pink: { own: Record<number, number>; parent: Record<number, number> };
     // Per-rarity weights for white skills and stat-boost sparks (bakes in star value — no separate f.stars multiply)
@@ -186,7 +185,6 @@ export const DEFAULT_CONFIG: ClassifierConfig = {
   heartWhiteThreshold: 10,
   aceScoreThreshold: 12000,
   weights: {
-    own: 1.0,
     parent: 0.4,
     blue: {
       own:    { 3: 4.0, 2: 1.0, 1: -0.5 },
@@ -196,15 +194,16 @@ export const DEFAULT_CONFIG: ClassifierConfig = {
       own:    { 3: 4.0, 2: 1.0, 1: -0.5 },
       parent: { 3: 1.5, 2: 0.6, 1: 0.1  },
     },
-    // Effective values bake in the old rarityBonus (3→1.2, 2→0.8, 1→0.6) × stars.
+    // own values bake in rarityBonus (3→1.2, 2→0.8, 1→0.6) × stars.
+    // parent values additionally bake in the 0.4 parent discount.
     // statSparks additionally bakes in the former whiteStatBoostMultiplier (1.5×).
     skillSparks: {
-      own:    { 3: 3.6, 2: 1.6, 1: 0.6 },
-      parent: { 3: 3.6, 2: 1.6, 1: 0.6 },
+      own:    { 3: 3.6,  2: 1.6,  1: 0.6  },
+      parent: { 3: 1.44, 2: 0.64, 1: 0.24 },
     },
     statSparks: {
-      own:    { 3: 5.4, 2: 2.4, 1: 0.9 },
-      parent: { 3: 5.4, 2: 2.4, 1: 0.9 },
+      own:    { 3: 5.4,  2: 2.4,  1: 0.9  },
+      parent: { 3: 2.16, 2: 0.96, 1: 0.36 },
     },
     skillBonuses: {
       2016001: 1.5,  // Groundwork (no front runner pinks)
