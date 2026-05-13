@@ -38,6 +38,7 @@ export interface FactorEntry {
   category?: string;
   stars: number;
   name: string;
+  skill_name?: string;  // resolved skill name for hint-type factors (type 5); equals name for type 4
   stat_boost?: string | null;
   style_cats?: string[];
   dist_cats?: string[];
@@ -131,6 +132,7 @@ function buildFactorMap(factors: RawFactor[], skillByName: Map<string, RawSkill>
         type: 'white',
         stars,
         name,
+        skill_name: hintName ?? name,
         stat_boost: type === 5 ? extractStatBoost(description) : null,
         style_cats: tags.filter(t => t in STYLE_TAG).map(t => STYLE_TAG[t]),
         dist_cats:  tags.filter(t => t in DIST_TAG).map(t => DIST_TAG[t]),
@@ -214,6 +216,16 @@ export function getRaceMap(): Map<number, RaceEntry> {
   return _raceMap;
 }
 
+// ─── Relevance constants ──────────────────────────────────────────────────────
+
+const RELEVANCE_MATCH    = 2.0;
+const RELEVANCE_GENERIC  = 1.0;
+const RELEVANCE_MISMATCH = 0.0;
+
+const DIST_CAT_MAP: Record<string, number> = { sprint: 1, mile: 2, mid: 3, long: 4 };
+const SURF_CAT_MAP: Record<string, number> = { turf: 1, dirt: 2 };
+const STYLE_NUM_MAP: Record<number, string> = { 1: 'front', 2: 'pace', 3: 'late', 4: 'end' };
+
 export function buildSkillRelevanceMap(
   env: RaceEnvironment
 ): Map<number, number> | null {
@@ -235,7 +247,6 @@ export function buildSkillRelevanceMap(
 
   const factorMap = getFactorMap();
 
-  // Load skills for activation condition parsing
   const skills: RawSkill[] = JSON.parse(
     readFileSync(join(ASSETS, 'TerumiSimpleSkillData.json'), 'utf-8')
   );
@@ -243,102 +254,56 @@ export function buildSkillRelevanceMap(
 
   const skillMap = new Map<number, number>();
 
-  const distCatMap: Record<string, number> = {
-    'sprint': 1, 'mile': 2, 'mid': 3, 'long': 4,
-  };
-  const surfCatMap: Record<string, number> = {
-    'turf': 1, 'dirt': 2,
-  };
-
   for (const [fid, entry] of factorMap) {
     if (entry.type !== 'white') continue;
 
-    const skill = skillByName.get(entry.name);
+    const skill = skillByName.get(entry.skill_name ?? entry.name);
     if (!skill) {
-      skillMap.set(fid, 0.5); // unknown skill — generic relevance
+      skillMap.set(fid, RELEVANCE_GENERIC);
       continue;
     }
 
     const cond = skill.activationCondition;
 
-    // ── Track-specific skills ─────────────────────────────────────────────────
+    // ── Track-specific: match or zero (only fires on one track) ──────────────
     if (cond.includes('track_id')) {
-      const match = cond.match(/track_id==(\d+)/);
-      if (match) {
-        const skillTrackId = parseInt(match[1]);
-        skillMap.set(fid, skillTrackId === env.trackId ? 2.0 : 0);
-      }
+      const m = cond.match(/track_id==(\d+)/);
+      skillMap.set(fid, m && parseInt(m[1]) === env.trackId ? RELEVANCE_MATCH : RELEVANCE_MISMATCH);
       continue;
     }
 
-    // ── Passive skills (green skills) — score by effect value + condition match ─
+    // ── Passive: same 3-tier logic as regular skills ──────────────────────────
     if (skill.skillCategory === 'Passive') {
-      const condMatch = matchesEnvironment(cond, env);
-      if (condMatch === 'mismatch') {
-        skillMap.set(fid, 0);
-        continue;
-      }
-
-      // Score by total positive stat effect value, normalized
-      const effectScore = (skill.effects ?? [])
-        .filter(e => e.value > 0)
-        .reduce((sum, e) => sum + e.value, 0);
-
-      // Normalize: +100 stat points → relevance 1.0, scale from there
-      const normalized = effectScore / 100;
-      skillMap.set(fid, condMatch === 'match' ? normalized * 1.5 : normalized * 0.5);
+      const condResult = matchesEnvironment(cond, env);
+      skillMap.set(fid, condResult === 'mismatch' ? RELEVANCE_MISMATCH
+        : condResult === 'match'                  ? RELEVANCE_MATCH
+        :                                           RELEVANCE_GENERIC);
       continue;
     }
 
-    // ── Regular white skills — score by dist/surf tag match ──────────────────
-    const skillDistTypes = (entry.dist_cats ?? []).map(c => distCatMap[c]).filter(Boolean);
-    const skillSurfTypes = (entry.surf_cats ?? []).map(c => surfCatMap[c]).filter(Boolean);
+    // ── Regular white: confirmed mismatch → 0, confirmed match → 2×, else 1× ─
+    const skillDistTypes = (entry.dist_cats ?? []).map(c => DIST_CAT_MAP[c]).filter(Boolean);
+    const skillSurfTypes = (entry.surf_cats ?? []).map(c => SURF_CAT_MAP[c]).filter(Boolean);
     const isGeneric = skillDistTypes.length === 0 && skillSurfTypes.length === 0;
 
-    if (isGeneric) {
-      // Check style match if running style specified
-      if (env.runningStyle && entry.style_cats && entry.style_cats.length > 0) {
-        const styleMap: Record<number, string> = {
-          1: 'front', 2: 'pace', 3: 'late', 4: 'end',
-        };
-        const envStyle = styleMap[env.runningStyle];
-        const styleMatch = entry.style_cats.includes(envStyle);
-        skillMap.set(fid, styleMatch ? 1.0 : 0.5);
-      } else {
-        skillMap.set(fid, 0.5);
+    let hasMatch    = false;
+    let hasMismatch = false;
+
+    if (!isGeneric) {
+      if (skillDistTypes.length > 0 && env.distanceType != null) {
+        if (skillDistTypes.includes(env.distanceType)) hasMatch = true; else hasMismatch = true;
       }
-      continue;
-    }
-
-    let score = 0;
-    let mismatches = 0;
-
-    if (skillDistTypes.length > 0 && env.distanceType != null) {
-      if (skillDistTypes.includes(env.distanceType)) {
-        score += 1.5;
-      } else {
-        mismatches++;
+      if (skillSurfTypes.length > 0 && env.groundType != null) {
+        if (skillSurfTypes.includes(env.groundType)) hasMatch = true; else hasMismatch = true;
       }
     }
 
-    if (skillSurfTypes.length > 0 && env.groundType != null) {
-      if (skillSurfTypes.includes(env.groundType)) {
-        score += 1.0;
-      } else {
-        mismatches++;
-      }
+    if (env.runningStyle != null && (entry.style_cats ?? []).length > 0) {
+      if (entry.style_cats!.includes(STYLE_NUM_MAP[env.runningStyle])) hasMatch = true;
+      else hasMismatch = true;
     }
 
-    // Style match bonus
-    if (env.runningStyle && entry.style_cats && entry.style_cats.length > 0) {
-      const styleMap: Record<number, string> = {
-        1: 'front', 2: 'pace', 3: 'late', 4: 'end',
-      };
-      const envStyle = styleMap[env.runningStyle];
-      if (entry.style_cats.includes(envStyle)) score += 0.5;
-    }
-
-    skillMap.set(fid, mismatches > 0 && score === 0 ? 0 : score);
+    skillMap.set(fid, hasMismatch ? RELEVANCE_MISMATCH : hasMatch ? RELEVANCE_MATCH : RELEVANCE_GENERIC);
   }
 
   return skillMap;
@@ -363,22 +328,31 @@ function matchesEnvironment(
   const FIELD_MAP: Record<string, keyof RaceEnvironment> = {
     'ground_condition': 'groundCondition',
     'weather':          'weather',
+    'season':           'season',
     'distance_type':    'distanceType',
     'ground_type':      'groundType',
     'running_style':    'runningStyle',
     'track_id':         'trackId',
   };
 
+  // Group checks by field — multiple values for the same field are OR conditions
+  // (e.g. "season==1@season==5" means "season is spring OR special-spring").
+  const fieldValues = new Map<string, number[]>();
+  for (const { field, value } of checks) {
+    if (!fieldValues.has(field)) fieldValues.set(field, []);
+    fieldValues.get(field)!.push(value);
+  }
+
   let matched = 0;
   let mismatched = 0;
   let unknown = 0;
 
-  for (const { field, value } of checks) {
+  for (const [field, values] of fieldValues) {
     const envKey = FIELD_MAP[field];
     if (!envKey) { unknown++; continue; }
     const envVal = env[envKey];
     if (envVal == null) { unknown++; continue; }
-    if (envVal === value) { matched++; } else { mismatched++; }
+    if (values.includes(envVal)) { matched++; } else { mismatched++; }
   }
 
   if (mismatched > 0) return 'mismatch';
