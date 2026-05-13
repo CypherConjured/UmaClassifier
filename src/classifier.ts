@@ -196,7 +196,6 @@ function collectPinks(factor_ids: number[], out: Map<string, number>): void {
 // Style pinks gate style-tagged white skill scoring.
 function scoreBluesAndPinks(
   factor_ids: number[],
-  weight: number,
   source: 'own' | 'parent',
   scores: CategoryScores,
   factors: FactorContribution[],
@@ -210,8 +209,7 @@ function scoreBluesAndPinks(
     if (!f) continue;
 
     if (f.type === 'blue' && f.category) {
-      const rarityMult = (source === 'own' ? blueW.own : blueW.parent)[f.stars] ?? 0;
-      const contribution = rarityMult * weight;
+      const contribution = (source === 'own' ? blueW.own : blueW.parent)[f.stars] ?? 0;
       for (const icon of ICON_CATEGORIES) scores[icon] = (scores[icon] ?? 0) + contribution;
       factors.push({ factor_id: fid, name: f.name, stars: f.stars, type: 'blue', source, category: f.category, contribution });
 
@@ -224,16 +222,15 @@ function scoreBluesAndPinks(
           if (f.category === 'turf' && icon !== 'dirt') catMult = 1.0;
           else if (f.category === 'dirt' && icon === 'dirt') catMult = 1.0;
           else if (f.category === icon) catMult = 1.0;
-          scores[icon] = (scores[icon] ?? 0) + rarityMult * weight * catMult;
+          scores[icon] = (scores[icon] ?? 0) + rarityMult * catMult;
         }
-        factors.push({ factor_id: fid, name: f.name, stars: f.stars, type: 'pink', source, category: f.category, contribution: rarityMult * weight });
+        factors.push({ factor_id: fid, name: f.name, stars: f.stars, type: 'pink', source, category: f.category, contribution: rarityMult });
 
       } else if (STYLE_SET.has(f.category)) {
         const isDominant = f.category === dominantStyle;
         let contribution = 0;
         if (isDominant) {
-          const rarityMult = (source === 'own' ? pinkW.own : pinkW.parent)[f.stars] ?? 0;
-          contribution = rarityMult * weight;
+          contribution = (source === 'own' ? pinkW.own : pinkW.parent)[f.stars] ?? 0;
           for (const icon of ICON_CATEGORIES) scores[icon] = (scores[icon] ?? 0) + contribution;
         }
         factors.push({ factor_id: fid, name: f.name, stars: f.stars, type: 'pink', source, category: f.category, contribution, secondary_category: isDominant ? 'dominant' : undefined });
@@ -243,11 +240,10 @@ function scoreBluesAndPinks(
 }
 
 // White and unique skills: composite score formula for quality and breakdown display.
-// baseContrib = rarityMult × weight × pinkMult × specialMult × overlapBonus × uniqueMult
-// rarityMult comes from weights.skillSparks or weights.statSparks (bakes in star value).
+// baseContrib = rarityMult × pinkMult × specialMult × overlapBonus × uniqueMult
+// rarityMult comes from weights.skillSparks or weights.statSparks (bakes in star value + parent discount).
 function scoreGreensAndWhites(
   factor_ids: number[],
-  weight: number,
   source: 'own' | 'parent',
   scores: CategoryScores,
   whiteTotal: { value: number },
@@ -284,10 +280,10 @@ function scoreGreensAndWhites(
     const specialMult  = specialBonus(fid, config);
     const overlap      = whiteOverlap.get(f.name) ?? 1;
     const overlapBonus = Math.pow(1.1, overlap - 1);
-    const baseContrib  = rarityMult * weight * pinkMult * specialMult * overlapBonus * uniqueMult;
+    const baseContrib  = rarityMult * pinkMult * specialMult * overlapBonus * uniqueMult;
 
     if (f.is_debuff) {
-      debuffScore.value += f.stars * weight;
+      debuffScore.value += f.stars;
     } else {
       whiteTotal.value += baseContrib * catStyleMult;
     }
@@ -415,15 +411,15 @@ function scoreUma(
   }
 
   // Pass 2: blues + pinks
-  scoreBluesAndPinks(uma.factor_id_array, config.weights.own, 'own', scores, factors, config, dominantStyle);
+  scoreBluesAndPinks(uma.factor_id_array, 'own', scores, factors, config, dominantStyle);
   for (const parent of directParents) {
-    scoreBluesAndPinks(parent.factor_id_array, config.weights.parent, 'parent', scores, factors, config, dominantStyle);
+    scoreBluesAndPinks(parent.factor_id_array, 'parent', scores, factors, config, dominantStyle);
   }
 
   // Pass 3: whites + uniques
-  scoreGreensAndWhites(uma.factor_id_array, config.weights.own, 'own', scores, whiteTotal, debuffScore, pinkStars, whiteOverlap, factors, config, dominantStyle, skillRelevance);
+  scoreGreensAndWhites(uma.factor_id_array, 'own', scores, whiteTotal, debuffScore, pinkStars, whiteOverlap, factors, config, dominantStyle, skillRelevance);
   for (const parent of directParents) {
-    scoreGreensAndWhites(parent.factor_id_array, config.weights.parent, 'parent', scores, whiteTotal, debuffScore, pinkStars, whiteOverlap, factors, config, dominantStyle, skillRelevance);
+    scoreGreensAndWhites(parent.factor_id_array, 'parent', scores, whiteTotal, debuffScore, pinkStars, whiteOverlap, factors, config, dominantStyle, skillRelevance);
   }
 
   // quality_score = blue quality + white total
