@@ -187,23 +187,23 @@ export const DEFAULT_CONFIG: ClassifierConfig = {
   weights: {
     parent: 0.4,
     blue: {
-      own:    { 3: 4.0, 2: 1.0, 1: -0.5 },
+      own:    { 3: 4.0, 2: 1.5, 1: -0.7 },
       parent: { 3: 1.5, 2: 0.6, 1: 0.1  },
     },
     pink: {
-      own:    { 3: 4.0, 2: 1.0, 1: -0.5 },
+      own:    { 3: 4.0, 2: 1.5, 1: -0.7 },
       parent: { 3: 1.5, 2: 0.6, 1: 0.1  },
     },
     // own values bake in rarityBonus (3→1.2, 2→0.8, 1→0.6) × stars.
     // parent values additionally bake in the 0.4 parent discount.
     // statSparks additionally bakes in the former whiteStatBoostMultiplier (1.5×).
     skillSparks: {
-      own:    { 3: 3.6,  2: 1.6,  1: 0.6  },
-      parent: { 3: 1.44, 2: 0.64, 1: 0.24 },
+      own:    { 3: 3.0, 2: 1.4, 1: 0.5 },
+      parent: { 3: 2.0, 2: 0.8, 1: 0.2 },
     },
     statSparks: {
-      own:    { 3: 5.4,  2: 2.4,  1: 0.9  },
-      parent: { 3: 2.16, 2: 0.96, 1: 0.36 },
+      own:    { 3: 4.0, 2: 3.0, 1: 1.0 },
+      parent: { 3: 3.0, 2: 2.0, 1: 0.8 },
     },
     skillBonuses: {
       2016001: 1.5,  // Groundwork (no front runner pinks)
