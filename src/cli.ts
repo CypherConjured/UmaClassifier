@@ -107,6 +107,7 @@ function parseArgs() {
   let jsonPath = '';
   let showBreakdown = false;
   let showGrid = false;
+  let gridFilter: 'all' | 'locked' | 'unlocked' = 'all';
   let raceId: number | null = null;
   let minRank: number | null = null;
   let maxRank: number | null = null;
@@ -143,7 +144,20 @@ function parseArgs() {
         }
         break;
       }
-      case '--grid':            showGrid                   = true; break;
+      case '--grid': {
+        showGrid = true;
+        const next = args[i + 1];
+        if (next && !next.startsWith('--')) {
+          if (next === 'locked' || next === 'unlocked' || next === 'all') {
+            gridFilter = next;
+            i++;
+          } else {
+            console.error(`--grid filter must be: all | locked | unlocked`);
+            process.exit(1);
+          }
+        }
+        break;
+      }
       default:
         if (!args[i].startsWith('--')) jsonPath = args[i];
       }
@@ -169,12 +183,13 @@ function parseArgs() {
         '  --min-rank #      Show only umas at or above this rank score',
         '  --max-rank #      Show only umas at or below this rank score',
         '  --breakdown [N]   Show score breakdown; optional exact rank score N limits output to that uma',
-        '  --grid            Print a 5-column veterans grid sorted by rank score',
+        '  --grid [filter]   Print a 5-column veterans grid sorted by rank score',
+        '                    filter: all (default) | locked | unlocked',
     ].join('\n'));
     process.exit(1);
   }
 
-  return { jsonPath, config, showBreakdown, showGrid, raceId, minRank, maxRank, weatherVal, groundCondVal, seasonVal };
+  return { jsonPath, config, showBreakdown, showGrid, gridFilter, raceId, minRank, maxRank, weatherVal, groundCondVal, seasonVal };
 }
 
 // ─── Icon color/label config for grid display ─────────────────────────────────
@@ -202,15 +217,20 @@ const GRID_ANSI_W  = 5; // ANSI color codes per cell (not fixed, but roughly est
 // Cell bot layout (visual): score(4) + space(1) + rank(5) + space(1) + name(12) + border(1) = 18 chars
 const GRID_CELL_W   = GRID_ANSI_W + GRID_INFO_W; // total chars per cell including ANSI codes and borders
 
-function printGrid(results: ScoredUma[]): void {
-  const sorted = [...results]
+function printGrid(results: ScoredUma[], filter: 'all' | 'locked' | 'unlocked'): void {
+  const filtered = filter === 'locked'   ? results.filter(u => u.is_locked)
+                 : filter === 'unlocked' ? results.filter(u => !u.is_locked)
+                 : results;
+
+  const sorted = [...filtered]
     .sort((a, b) => b.rank_score - a.rank_score)
     .slice(0, GRID_COLS * GRID_MAX_ROWS);
 
   const rows = Math.ceil(sorted.length / GRID_COLS);
 
+  const filterLabel = filter === 'all' ? '' : `  [${filter}]`;
   console.log('\n═══════════════════════════════════════════════════════════');
-  console.log('  VETERANS GRID  (sorted by rank score, 5 columns)');
+  console.log(`  VETERANS GRID  (sorted by rank score, 5 columns)${filterLabel}`);
   console.log('═══════════════════════════════════════════════════════════\n');
 
   for (let row = 0; row < rows; row++) {
@@ -508,7 +528,7 @@ function printTable(
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-const { jsonPath, config, showBreakdown, showGrid, raceId, minRank, maxRank, weatherVal, groundCondVal, seasonVal } = parseArgs();
+const { jsonPath, config, showBreakdown, showGrid, gridFilter, raceId, minRank, maxRank, weatherVal, groundCondVal, seasonVal } = parseArgs();
 
 let raw: unknown;
 try {
@@ -554,5 +574,5 @@ if (raceId !== null) {
 
 const results = classifyRoster(raw as any, config, skillRelevance);
 
-if (showGrid) printGrid(results); 
+if (showGrid) printGrid(results, gridFilter);
 else printTable(results, config, showBreakdown, minRank, maxRank);
