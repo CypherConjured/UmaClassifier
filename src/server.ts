@@ -74,8 +74,9 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
         : undefined;
       const results = classifyRoster(body.data, config, skillRelevance);
       const named = results.map(r => ({ ...r, name: lookupCharName(r.card_id) }));
+      const targetRace = env?.raceId ? (getRaceMap().get(env.raceId) ?? null) : null;
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ results: named, env }));
+      res.end(JSON.stringify({ results: named, env, targetRace }));
     } catch (e) {
       res.writeHead(400, { 'Content-Type': 'text/plain' });
       res.end(String(e));
