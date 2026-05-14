@@ -644,6 +644,7 @@
   <div class="controls-footer">
     <button class="secondary" onclick="resetToDefaults()">↺ Reset to defaults</button>
     <div class="controls-footer-right">
+      <button class="secondary" onclick="refreshIcons()">↺ Refresh icons</button>
       <button class="secondary" id="themeBtn" onclick="cycleTheme()">☾ Dark</button>
       <button class="secondary" onclick="exportConfig()">↑ Export config</button>
       <button class="secondary" onclick="importConfig()">↓ Import config</button>
@@ -733,13 +734,27 @@
   function g(id) { return document.getElementById(id); }
   function gv(id) { return g(id)?.value ?? ''; }
 
+  // ── Icon cache-busting version ────────────────────────────────────────
+  // Stored in localStorage; bump it to force the browser to re-fetch icons.
+  let _iconV = localStorage.getItem('uma-icon-v') || '1';
+
   // ── Icon square helper ────────────────────────────────────────────────
   function iconSq(icon, size = 'md') {
-    const src = ICON_IMG[icon];
+    const base = ICON_IMG[icon];
+    const src  = base ? `${base}?v=${_iconV}` : null;
     const inner = src
       ? `<img src="${src}" alt="${icon}">`
       : `<span style="font-size:0.55rem;font-weight:700;color:#fff;line-height:1">${ICON_BADGE[icon]?.label ?? '??'}</span>`;
     return `<span class="icon-sq icon-sq-${icon} icon-sq-${size}">${inner}</span>`;
+  }
+
+  function refreshIcons() {
+    _iconV = String(parseInt(_iconV) + 1);
+    localStorage.setItem('uma-icon-v', _iconV);
+    if (_lastResults) {
+      renderResults(_lastResults);
+      if (_gridMode) renderGrid();
+    }
   }
 
   // ── Theme ─────────────────────────────────────────────────────────────
