@@ -277,10 +277,16 @@
       margin-bottom: 0.15rem;
     }
     .grid-icon-img {
-      width: 36px;
-      height: 36px;
+      width: 26px;
+      height: 26px;
       object-fit: contain;
-      display: block;
+      flex-shrink: 0;
+    }
+    .grid-name-row {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      min-width: 0;
       margin-bottom: 0.1rem;
     }
     .grid-name {
@@ -289,6 +295,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      min-width: 0;
     }
     .grid-rs { font-size: 0.75rem; color: #888; }
     .grid-arch {
@@ -1043,9 +1050,8 @@
       const iconEl = imgSrc
         ? `<img class="grid-icon-img" src="${imgSrc}" alt="${icon}">`
         : `<span class="grid-badge" style="background:${badge.bg};color:${badge.fg}">${badge.label}</span>`;
-      return `<div class="grid-cell">
-        <div>${iconEl}</div>
-        <div class="grid-name">${lock}${name}</div>
+      return `<div class="grid-cell has-hover" data-uma-id="${u.trained_chara_id}">
+        <div class="grid-name-row">${iconEl}<div class="grid-name">${lock}${name}</div></div>
         <div class="grid-rs">${u.rank_score.toLocaleString()}</div>
         <div class="grid-arch">${arch}</div>
       </div>`;
