@@ -276,6 +276,13 @@
       font-weight: 700;
       margin-bottom: 0.15rem;
     }
+    .grid-icon-img {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+      display: block;
+      margin-bottom: 0.1rem;
+    }
     .grid-name {
       font-size: 0.82rem;
       font-weight: 600;
@@ -597,7 +604,7 @@
     unlock: '— Unlock',
   };
 
-  // Badge style for grid view
+  // Badge style for grid view (fallback when no image)
   const ICON_BADGE = {
     sprint: { bg: '#8e44ad', fg: '#fff', label: 'SP' },
     mile:   { bg: '#27ae60', fg: '#fff', label: 'MI' },
@@ -610,6 +617,19 @@
     trash:  { bg: '#aaa',    fg: '#fff',    label: 'TR' },
     skip:   { bg: '#ddd',    fg: '#888',    label: '--' },
     unlock: { bg: '#f8ddd8', fg: '#c0392b', label: 'XX' },
+  };
+
+  // Image icons served from /icons/ — mapped to classifier icon keys
+  const ICON_IMG = {
+    sprint: '/icons/10_shoe_pink.png',
+    mile:   '/icons/11_shoe_green.png',
+    mid:    '/icons/12_shoe_yellow.png',
+    long:   '/icons/13_shoe_blue.png',
+    dirt:   '/icons/14_shoe_red.png',
+    heart:  '/icons/08_heart.png',
+    clubs:  '/icons/09_clubs.png',
+    ace:    '/icons/07_spade.png',
+    trash:  '/icons/15_friendship.png',
   };
 
   // ── Default settings (mirrors DEFAULT_CONFIG + UI prefs) ──────────────
@@ -1014,12 +1034,17 @@
     }
 
     const cells = sorted.map(u => {
-      const badge = ICON_BADGE[u.assigned_icon ?? 'skip'] ?? ICON_BADGE.skip;
-      const name  = (u.name ?? ('card:' + u.card_id)).slice(0, 18);
-      const arch  = u.archetype_label?.label ?? '—';
-      const lock  = u.is_locked ? '🔒 ' : '';
+      const icon  = u.assigned_icon ?? 'skip';
+      const imgSrc = ICON_IMG[icon];
+      const badge  = ICON_BADGE[icon] ?? ICON_BADGE.skip;
+      const name   = (u.name ?? ('card:' + u.card_id)).slice(0, 18);
+      const arch   = u.archetype_label?.label ?? '—';
+      const lock   = u.is_locked ? '🔒 ' : '';
+      const iconEl = imgSrc
+        ? `<img class="grid-icon-img" src="${imgSrc}" alt="${icon}">`
+        : `<span class="grid-badge" style="background:${badge.bg};color:${badge.fg}">${badge.label}</span>`;
       return `<div class="grid-cell">
-        <div><span class="grid-badge" style="background:${badge.bg};color:${badge.fg}">${badge.label}</span></div>
+        <div>${iconEl}</div>
         <div class="grid-name">${lock}${name}</div>
         <div class="grid-rs">${u.rank_score.toLocaleString()}</div>
         <div class="grid-arch">${arch}</div>
