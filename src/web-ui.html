@@ -25,11 +25,13 @@
       border-radius: 8px;
       box-shadow: 0 1px 4px #0001;
       margin-bottom: 1.5rem;
-      overflow: hidden;
+      /* overflow: visible so .tip::after tooltips aren't clipped */
+      overflow: visible;
     }
 
     details.tab { border-top: 1px solid #f0f0f0; }
-    details.tab:first-child { border-top: none; }
+    details.tab:first-child { border-top: none; border-radius: 8px 8px 0 0; }
+    details.tab:first-child > summary { border-radius: 8px 8px 0 0; }
 
     details.tab > summary {
       padding: 0.65rem 1rem;
@@ -117,6 +119,7 @@
       gap: 0.5rem;
       align-items: center;
       background: #fafafa;
+      border-radius: 0 0 8px 8px;
     }
     .controls-footer-right { margin-left: auto; display: flex; gap: 0.5rem; }
 
@@ -374,7 +377,7 @@
       text-align: left;
       pointer-events: none;
       display: none;
-      z-index: 300;
+      z-index: 9999;
     }
     .tip:hover::after { display: block; }
 
