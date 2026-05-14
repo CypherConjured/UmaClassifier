@@ -404,6 +404,8 @@
     .hover-card.expanded {
       border-color: #e8934a;
       box-shadow: 0 4px 24px #e8934a22;
+      pointer-events: auto;   /* allow scroll on the whites list */
+      cursor: default;
     }
 
     /* Summary pane — left column, always visible */
@@ -1348,6 +1350,9 @@
   });
 
   document.addEventListener('click', e => {
+    // Clicks inside the expanded card (e.g. scrolling via trackpad tap) don't collapse it
+    if (_pinnedUmaId !== null && hoverCard.contains(e.target)) return;
+
     const row = e.target.closest('.has-hover');
     if (!row || !_lastResults) {
       if (_pinnedUmaId !== null) collapseCard();
