@@ -1,809 +1,1381 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Uma Classifier</title>
-    <style>
-        * {
-            box-sizing: border-box;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Uma Classifier</title>
+  <style>
+    * { box-sizing: border-box; }
 
-        body {
-            font-family: system-ui, sans-serif;
-            max-width: 1100px;
-            margin: 2rem auto;
-            padding: 0 1rem;
-            background: #f9f6f0;
-            color: #333;
-        }
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem 6rem;
+      background: #f9f6f0;
+      color: #333;
+    }
 
-        h1 {
-            font-size: 1.5rem;
-            margin-bottom: 0.25rem;
-        }
+    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 1.5rem; }
 
-        .subtitle {
-            color: #888;
-            font-size: 0.9rem;
-            margin-bottom: 1.5rem;
-        }
+    /* ── Controls ─────────────────────────────────────────────────────── */
+    .controls {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px #0001;
+      margin-bottom: 1.5rem;
+      /* overflow: visible so .tip::after tooltips aren't clipped */
+      overflow: visible;
+    }
 
-        /* Controls */
-        .controls {
-            background: white;
-            padding: 1rem;
-            border-radius: 8px;
-            box-shadow: 0 1px 4px #0001;
-            margin-bottom: 1.5rem;
-        }
+    details.tab { border-top: 1px solid #f0f0f0; }
+    details.tab:first-child { border-top: none; border-radius: 8px 8px 0 0; }
+    details.tab:first-child > summary { border-radius: 8px 8px 0 0; }
 
-        .controls-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1rem;
-            align-items: flex-end;
-            margin-bottom: 0.75rem;
-        }
+    details.tab > summary {
+      padding: 0.65rem 1rem;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #666;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: #fafafa;
+    }
+    details.tab > summary::-webkit-details-marker { display: none; }
+    details.tab > summary::before {
+      content: '▶';
+      font-size: 0.6rem;
+      transition: transform 0.15s;
+      color: #bbb;
+    }
+    details.tab[open] > summary::before { transform: rotate(90deg); }
+    details.tab[open] > summary { background: white; color: #444; }
 
-        .controls-row:last-child {
-            margin-bottom: 0;
-        }
+    .tab-body {
+      padding: 1rem;
+      border-top: 1px solid #f0f0f0;
+    }
 
-        .field {
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-        }
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+      margin-bottom: 0.75rem;
+    }
+    .controls-row:last-child { margin-bottom: 0; }
 
-        .field-wide {
-            flex: 1;
-            min-width: 120px;
-        }
+    .field { display: flex; flex-direction: column; gap: 0.25rem; }
 
-        label {
-            font-size: 0.75rem;
-            color: #666;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-        }
+    label {
+      font-size: 0.72rem;
+      color: #666;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
 
-        input[type=number] {
-            width: 80px;
-            padding: 0.4rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 0.9rem;
-        }
+    input[type=number], input[type=file], select {
+      padding: 0.4rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      background: white;
+    }
+    input[type=number] { width: 80px; }
+    select { min-width: 200px; }
 
-        input[type=file] {
-            font-size: 0.9rem;
-        }
+    button {
+      padding: 0.5rem 1.2rem;
+      background: #e8934a;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    button:hover { background: #d4823b; }
+    button.secondary {
+      background: white;
+      color: #666;
+      border: 1px solid #ddd;
+      font-size: 0.8rem;
+      padding: 0.35rem 0.8rem;
+    }
+    button.secondary:hover { background: #f5f5f5; color: #333; }
 
-        .section-label {
-            font-size: 0.7rem;
-            font-weight: 700;
-            color: #aaa;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            width: 100%;
-            margin-bottom: 0rem;
-        }
+    .controls-footer {
+      padding: 0.75rem 1rem;
+      border-top: 1px solid #f0f0f0;
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      background: #fafafa;
+      border-radius: 0 0 8px 8px;
+    }
+    .controls-footer-right { margin-left: auto; display: flex; gap: 0.5rem; }
 
-        button {
-            padding: 0.5rem 1.4rem;
-            background: #e8934a;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 0.95rem;
-            font-weight: 600;
-        }
+    /* ── Weight tables ────────────────────────────────────────────────── */
+    .weights-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+    }
+    .weight-group { min-width: 220px; }
+    .weight-group-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.35rem;
+    }
+    .wt { border-collapse: collapse; font-size: 0.82rem; }
+    .wt th {
+      text-align: center;
+      padding: 0.15rem 0.3rem;
+      color: #aaa;
+      font-weight: 600;
+      font-size: 0.72rem;
+      border-bottom: 1px solid #eee;
+    }
+    .wt td { padding: 0.2rem 0.3rem; color: #555; }
+    .wt input[type=number] { width: 58px; padding: 0.25rem 0.3rem; font-size: 0.82rem; }
 
-        button:hover {
-            background: #d4823b;
-        }
+    .misc-weights { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; }
+    .misc-weights .field { min-width: 120px; }
 
-        /* Results */
-        .results {
-            display: none;
-        }
+    /* ── Results & groups ─────────────────────────────────────────────── */
+    .results { display: none; }
 
-        .group {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 1px 4px #0001;
-            margin-bottom: 1rem;
-            overflow: hidden;
-        }
+    .group {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px #0001;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+    .group-header {
+      padding: 0.6rem 1rem;
+      font-weight: 700;
+      font-size: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .group-body { padding: 0 0.5rem 0.5rem; overflow-x: auto; }
 
-        .group-header {
-            padding: 0.6rem 1rem;
-            font-weight: 700;
-            font-size: 1rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th {
+      text-align: left;
+      padding: 0.3rem 0.5rem;
+      color: #888;
+      font-size: 0.75rem;
+      border-bottom: 1px solid #eee;
+      white-space: nowrap;
+      user-select: none;
+    }
+    th.sortable { cursor: pointer; }
+    th.sortable:hover { color: #444; }
+    th.sort-asc::after  { content: ' ▲'; }
+    th.sort-desc::after { content: ' ▼'; }
+    td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #f5f5f5; white-space: nowrap; }
+    tr:last-child td { border-bottom: none; }
 
-        .group-body {
-            padding: 0 0.5rem 0.5rem;
-            overflow-x: auto;
-        }
+    .score-bar {
+      display: inline-block;
+      height: 8px;
+      background: #e8934a;
+      border-radius: 4px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.85rem;
-        }
+    .arch-label { color: #668; font-size: 0.8rem; }
 
-        th {
-            text-align: left;
-            padding: 0.3rem 0.5rem;
-            color: #888;
-            font-size: 0.75rem;
-            border-bottom: 1px solid #eee;
-            white-space: nowrap;
-            user-select: none;
-        }
+    /* ── Icon group colors ───────────────────────────────────────────── */
+    .icon-sprint .group-header { background: #ede8f8; }
+    .icon-mile   .group-header { background: #e8f8ed; }
+    .icon-mid    .group-header { background: #f8f3e0; }
+    .icon-long   .group-header { background: #e0edf8; }
+    .icon-dirt   .group-header { background: #f8ede8; }
+    .icon-heart  .group-header { background: #f8ddf0; }
+    .icon-clubs  .group-header { background: #e8f8e8; }
+    .icon-ace    .group-header { background: #333; color: white; }
+    .icon-trash  .group-header { background: #eee; color: #888; }
 
-        th.sortable {
-            cursor: pointer;
-        }
+    /* ── Race section ────────────────────────────────────────────────── */
+    .race-section {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px #0001;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+    .race-section .group-header {
+      background: linear-gradient(135deg, #e8934a, #d4823b);
+      color: white;
+    }
+    .race-score { font-weight: 700; color: #e8934a; }
 
-        th.sortable:hover {
-            color: #444;
-        }
+    /* ── Summary ─────────────────────────────────────────────────────── */
+    .summary {
+      background: white;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 1px 4px #0001;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .summary-chip {
+      padding: 0.15rem 0.6rem;
+      border-radius: 10px;
+      font-size: 0.8rem;
+      background: #f0f0f0;
+    }
+    .summary-total { margin-left: auto; font-size: 0.82rem; color: #888; }
 
-        th.sort-asc::after {
-            content: ' ▲';
-        }
+    /* ── Grid view ───────────────────────────────────────────────────── */
+    #grid-view { display: none; }
 
-        th.sort-desc::after {
-            content: ' ▼';
-        }
+    .grid-view-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+      color: #888;
+      font-size: 0.85rem;
+    }
 
-        td {
-            padding: 0.35rem 0.5rem;
-            border-bottom: 1px solid #f5f5f5;
-            white-space: nowrap;
-        }
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+    }
 
-        tr:last-child td {
-            border-bottom: none;
-        }
+    .grid-cell {
+      background: white;
+      border-radius: 4px;
+      padding: 0.4rem 0.5rem;
+      box-shadow: 0 1px 2px #0001;
+      min-width: 0;
+    }
+    .grid-badge {
+      display: inline-block;
+      padding: 0.05rem 0.35rem;
+      border-radius: 3px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      margin-bottom: 0.15rem;
+    }
+    .grid-icon-img {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+    .grid-cell-inner {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      min-width: 0;
+    }
+    .grid-cell-text {
+      min-width: 0;
+      flex: 1;
+    }
+    .grid-name {
+      font-size: 0.82rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .grid-rs { font-size: 0.75rem; color: #888; }
+    .grid-arch {
+      font-size: 0.7rem;
+      color: #668;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
 
-        .score-bar {
-            display: inline-block;
-            height: 8px;
-            background: #e8934a;
-            border-radius: 4px;
-            margin-right: 4px;
-            vertical-align: middle;
-        }
+    /* ── Floating view toggle FAB ────────────────────────────────────── */
+    .view-fab {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      z-index: 50;
+      display: none;            /* shown only when results exist */
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.4rem;
+    }
+    .fab-inner {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: white;
+      border-radius: 10px;
+      padding: 0.5rem 0.75rem;
+      box-shadow: 0 2px 12px #0003;
+    }
+    .fab-inner select {
+      font-size: 0.82rem;
+      padding: 0.25rem 0.4rem;
+      min-width: auto;
+    }
+    #viewToggleBtn { padding: 0.4rem 1rem; font-size: 0.85rem; }
 
-        /* Hover card */
-        .has-whites {
-            cursor: pointer;
-        }
+    /* ── Label tooltips ─────────────────────────────────────────────── */
+    .tip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: #ddd;
+      color: #888;
+      font-size: 0.6rem;
+      font-weight: 700;
+      font-style: normal;
+      text-transform: none;
+      letter-spacing: 0;
+      cursor: help;
+      position: relative;
+      margin-left: 3px;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+    .tip::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 6px);
+      transform: translateX(-50%);
+      background: #333;
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 400;
+      line-height: 1.45;
+      padding: 0.4rem 0.55rem;
+      border-radius: 5px;
+      white-space: normal;
+      width: 220px;
+      text-align: left;
+      pointer-events: none;
+      display: none;
+      z-index: 9999;
+    }
+    .tip:hover::after { display: block; }
 
-        .hover-card {
-            display: none;
-            position: fixed;
-            z-index: 100;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            box-shadow: 0 4px 16px #0002;
-            padding: 0.75rem;
-            min-width: 340px;
-            max-width: 480px;
-            max-height: 80vh;
-            overflow-y: visible;
-            font-size: 0.8rem;
-            pointer-events: none;
-        }
+    /* ── Hover card ──────────────────────────────────────────────────── */
+    .has-hover { cursor: pointer; }
 
-        .hover-card h4 {
-            margin: 0 0 0.5rem;
-            font-size: 0.85rem;
-        }
+    .hover-card {
+      display: none;
+      position: fixed;
+      z-index: 100;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px #0002;
+      padding: 0.75rem;
+      font-size: 0.8rem;
+      pointer-events: none;
+      /* horizontal flex so whites pane slides in to the right */
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 0;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .hover-card.expanded {
+      border-color: #e8934a;
+      box-shadow: 0 4px 24px #e8934a22;
+      pointer-events: auto;   /* allow scroll on the whites list */
+      cursor: default;
+    }
 
-        .hover-card table {
-            width: 100%;
-            font-size: 0.78rem;
-        }
+    /* Summary pane — left column, always visible */
+    .hc-summary { flex-shrink: 0; min-width: 200px; }
+    .hc-name { font-weight: 700; font-size: 0.88rem; margin-bottom: 0.18rem; }
+    .hc-meta { font-size: 0.75rem; color: #888; margin-bottom: 0.3rem; }
+    .hc-expand-hint {
+      margin-top: 0.4rem;
+      font-size: 0.64rem;
+      color: #ccc;
+      letter-spacing: 0.04em;
+    }
+    .hover-card.expanded .hc-expand-hint { display: none; }
 
-        .hover-card th {
-            color: #aaa;
-            font-weight: 600;
-            padding: 0.2rem 0.4rem;
-            border-bottom: 1px solid #eee;
-        }
+    /* Detail pane — whites column, slides in horizontally */
+    .hc-detail {
+      overflow: hidden;
+      max-width: 0;
+      opacity: 0;
+      transition: max-width 0.28s ease, opacity 0.2s ease;
+    }
+    .hover-card.expanded .hc-detail {
+      max-width: 400px;
+      opacity: 1;
+    }
+    /* Inner wrapper gives the whites column its fixed width + scrollability */
+    .hc-detail-inner {
+      width: 360px;
+      padding-left: 1rem;
+      margin-left: 0.25rem;
+      border-left: 1px solid #eee;
+      max-height: min(70vh, 480px);
+      overflow-y: auto;
+    }
+    .hc-collapse-hint {
+      margin-top: 0.5rem;
+      font-size: 0.64rem;
+      color: #ccc;
+      letter-spacing: 0.04em;
+    }
+    .hc-section-label {
+      font-size: 0.67rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #aaa;
+      margin: 0.55rem 0 0.2rem;
+    }
+    .hc-section-label:first-child { margin-top: 0; }
+    .hover-card table { width: 100%; font-size: 0.77rem; }
+    .hover-card th { color: #aaa; font-weight: 600; padding: 0.15rem 0.35rem; border-bottom: 1px solid #eee; }
+    .hover-card td { padding: 0.15rem 0.35rem; border-bottom: 1px solid #f8f8f8; white-space: nowrap; }
+    .hover-card tr:last-child td { border-bottom: none; }
 
-        .hover-card td {
-            padding: 0.2rem 0.4rem;
-            border-bottom: 1px solid #f8f8f8;
-        }
+    /* White skills — single column so names have room to breathe */
+    .white-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    .white-item {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.75rem;
+      padding: 0.1rem 0;
+      border-bottom: 1px solid #f8f8f8;
+      min-width: 0;
+    }
+    .white-name {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .white-val { font-weight: 600; white-space: nowrap; }
 
-        .hover-card tr:last-child td {
-            border-bottom: none;
-        }
+    .tag {
+      display: inline-block;
+      padding: 0 0.3rem;
+      border-radius: 3px;
+      font-size: 0.68rem;
+      margin-right: 2px;
+    }
+    .tag-dist  { background: #e8e8f8; color: #446; }
+    .tag-style { background: #f8e8f8; color: #644; }
+    .tag-surf  { background: #e8f8e8; color: #464; }
+    .tag-debuff{ background: #f8e8e8; color: #844; }
+    .src-own    { color: #e8934a; font-weight: 700; }
+    .src-parent { color: #aaa; }
 
-        .tag {
-            display: inline-block;
-            padding: 0 0.3rem;
-            border-radius: 3px;
-            font-size: 0.7rem;
-            margin-right: 2px;
-        }
-
-        .tag-dist {
-            background: #e8e8f8;
-            color: #446;
-        }
-
-        .tag-style {
-            background: #f8e8f8;
-            color: #644;
-        }
-
-        .tag-surf {
-            background: #e8f8e8;
-            color: #464;
-        }
-
-        .tag-debuff {
-            background: #f8e8e8;
-            color: #644;
-        }
-
-        .src-own {
-            color: #e8934a;
-            font-weight: 700;
-        }
-
-        .src-parent {
-            color: #aaa;
-        }
-
-        /* Icon group colors */
-        .icon-speed .group-header {
-            background: #ddeef8;
-        }
-
-        .icon-stamina .group-header {
-            background: #f8dde6;
-        }
-
-        .icon-power .group-header {
-            background: #f8eddd;
-        }
-
-        .icon-guts .group-header {
-            background: #f8dddd;
-        }
-
-        .icon-wit .group-header {
-            background: #e8f8dd;
-        }
-
-        .icon-turf .group-header {
-            background: #ddf8f0;
-        }
-
-        .icon-dirt .group-header {
-            background: #f0e8d8;
-        }
-
-        .icon-sprint .group-header,
-        .icon-mile .group-header,
-        .icon-mid .group-header,
-        .icon-long .group-header {
-            background: #e8e8f8;
-        }
-
-        .icon-heart .group-header {
-            background: #f8ddf0;
-        }
-
-        .icon-clubs .group-header {
-            background: #e8f8e8;
-        }
-
-        .icon-ace .group-header {
-            background: #333;
-            color: white;
-        }
-
-        .icon-trash .group-header {
-            background: #eee;
-            color: #888;
-        }
-
-        /* Race Section */
-        .race-section {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 1px 4px #0001;
-            margin-bottom: 1rem;
-            overflow: hidden;
-        }
-
-        .race-section .group-header {
-            background: linear-gradient(135deg, #e8934a, #d4823b);
-            color: white;
-        }
-
-        .race-score {
-            font-weight: 700;
-            color: #e8934a;
-        }
-
-        select {
-            padding: 0.4rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 0.9rem;
-            background: white;
-            min-width: 200px;
-        }
-
-        /* Summary */
-        .summary {
-            background: white;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 1px 4px #0001;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            align-items: center;
-        }
-
-        .summary-chip {
-            padding: 0.2rem 0.7rem;
-            border-radius: 12px;
-            font-size: 0.82rem;
-            background: #f0f0f0;
-        }
-
-        .summary-total {
-            margin-left: auto;
-            font-size: 0.85rem;
-            color: #888;
-        }
-
-        .error {
-            color: #c00;
-            background: #fff0f0;
-            padding: 1rem;
-            border-radius: 8px;
-        }
-    </style>
+    .error {
+      color: #c00;
+      background: #fff0f0;
+      padding: 1rem;
+      border-radius: 8px;
+    }
+  </style>
 </head>
-
 <body>
-    <h1>🏇 Uma Classifier</h1>
-    <p class="subtitle">Load your roster JSON to score and assign favorite icons based on sparks.</p>
 
-    <div class="controls">
-        <div class="controls-row">
-            <div class="field">
-                <label>Roster JSON</label>
-                <input type="file" id="fileInput" accept=".json">
-            </div>
-            <button onclick="run()">Classify</button>
+<h1>🏇 Uma Classifier</h1>
+<p class="subtitle">Load your roster JSON to score and assign favorite icons based on sparks.</p>
+
+<div class="controls">
+
+  <!-- ── Basic tab (open by default) ─────────────────────────────────── -->
+  <details class="tab" open>
+    <summary>Basic</summary>
+    <div class="tab-body">
+      <div class="controls-row">
+        <div class="field">
+          <label>Roster JSON</label>
+          <input type="file" id="fileInput" accept=".json">
         </div>
-
-        <div class="section-label">Category settings</div>
-        <div class="controls-row">
-            <div class="field">
-                <label>Keep per category</label>
-                <input type="number" id="keepN" value="7" min="1" max="50">
-            </div>
-            <div class="field">
-                <label>Min category score</label>
-                <input type="number" id="minScore" value="2" min="0" step="0.5">
-            </div>
-            <div class="field">
-                <label>Keep aces</label>
-                <input type="number" id="keepAce" value="15" min="1" max="100">
-            </div>
-            <div class="field">
-                <label>Ace rank score ≥</label>
-                <input type="number" id="aceThresh" value="12500" min="0" step="100">
-            </div>
-            <div class="field">
-                <label>Keep hearts</label>
-                <input type="number" id="keepHeart" value="20" min="1" max="100">
-            </div>
-            <div class="field">
-                <label>Heart white ≥</label>
-                <input type="number" id="heartThresh" value="20" min="0" step="0.5">
-            </div>
-        </div>
-
-        <div class="section-label">Scoring weights</div>
-        <div class="controls-row">
-            <div class="field">
-                <label>Own factor weight</label>
-                <input type="number" id="weightOwn" value="1" min="0.1" step="0.5">
-            </div>
-            <div class="field">
-                <label>Parent factor weight</label>
-                <input type="number" id="weightParent" value=".8" min="0.1" step="0.5">
-            </div>
-            <div class="field">
-                <label>White skill multiplier</label>
-                <input type="number" id="whiteSkillMult" value="1.0" min="0" step="0.1">
-            </div>
-            <div class="field">
-                <label>White stat multiplier</label>
-                <input type="number" id="whiteStatMult" value="0.5" min="0" step="0.1">
-            </div>
-        </div>
-    </div>
-
-    <div class="section-label">Race target (optional)</div>
-    <div class="controls-row">
-      <div class="field">
-        <label>Target Race</label>
-        <select id="targetRace">
-          <option value="">— None —</option>
-        </select>
+        <button onclick="run()">Classify</button>
       </div>
-      <div class="field">
-        <label>Top N parents</label>
-        <input type="number" id="raceTopN" value="7" min="1" max="50">
+      <div class="controls-row">
+        <div class="field">
+          <label>Keep per archetype<span class="tip" data-tip="Max umas kept per archetype label (e.g. 'front × turf/mile'). Umas in the same group are ranked by quality score.">i</span></label>
+          <input type="number" id="keepN" value="7" min="1" max="50">
+        </div>
+        <div class="field">
+          <label>Max per icon<span class="tip" data-tip="Hard cap on total umas assigned to each icon type across all archetype groups.">i</span></label>
+          <input type="number" id="maxPerIcon" value="10" min="1" max="100">
+        </div>
+        <div class="field">
+          <label>Trash count<span class="tip" data-tip="Number of lowest-quality umas to flag as transfer candidates.">i</span></label>
+          <input type="number" id="numTrash" value="50" min="0" max="500">
+        </div>
+      </div>
+      <div class="controls-row">
+        <div class="field">
+          <label>Target Race<span class="tip" data-tip="Score skill relevance against this race. White skills matching the race's distance and surface receive a 2× bonus; mismatches score 0.">i</span></label>
+          <select id="targetRace">
+            <option value="">— None —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Top N parents<span class="tip" data-tip="How many top race-scoring umas to show in the race parents section.">i</span></label>
+          <input type="number" id="raceTopN" value="7" min="1" max="50">
+        </div>
       </div>
     </div>
+  </details>
 
-    <div id="results" class="results"></div>
+  <!-- ── Thresholds tab ───────────────────────────────────────────────── -->
+  <details class="tab">
+    <summary>Thresholds</summary>
+    <div class="tab-body">
+      <div class="controls-row">
+        <div class="field">
+          <label>Ace rank score ≥<span class="tip" data-tip="Minimum in-game rank score to qualify for the Ace icon (high-stats racing fallback).">i</span></label>
+          <input type="number" id="aceThresh" value="12500" min="0" step="100">
+        </div>
+        <div class="field">
+          <label>Keep aces<span class="tip" data-tip="Maximum number of umas that can receive the Ace icon.">i</span></label>
+          <input type="number" id="keepAce" value="15" min="1" max="100">
+        </div>
+      </div>
+      <div class="controls-row">
+        <div class="field">
+          <label>Heart white ≥<span class="tip" data-tip="Minimum total white-spark score to qualify for the Heart icon (skill collector).">i</span></label>
+          <input type="number" id="heartThresh" value="20" min="0" step="0.5">
+        </div>
+        <div class="field">
+          <label>Keep hearts<span class="tip" data-tip="Maximum number of umas that can receive the Heart icon.">i</span></label>
+          <input type="number" id="keepHeart" value="20" min="1" max="100">
+        </div>
+      </div>
+      <div class="controls-row">
+        <div class="field">
+          <label>Min category score<span class="tip" data-tip="Minimum score an uma needs in a category to be ranked within it. Filters out noise.">i</span></label>
+          <input type="number" id="minScore" value="2" min="0" step="0.5">
+        </div>
+      </div>
+    </div>
+  </details>
 
-    <script>
-        const ICON_LABEL = {
-            speed: '🥤 Speed sparks',
-            stamina: '🍚 Stamina sparks',
-            power: '🍫 Power sparks',
-            guts: '🥕 Guts sparks',
-            wit: '🍰 Wit sparks',
-            turf: '♦ Turf sparks',
-            dirt: '👟 Dirt sparks',
-            sprint: '👟 Sprint sparks',
-            mile: '👟 Mile sparks',
-            mid: '👟 Mid sparks',
-            long: '👟 Long sparks',
-            heart: '♥ Skill sparks',
-            clubs: '♣ Debuffer',
-            ace: '♠ Ace',
-            trash: '🗑️ Trash',
-        };
-        const ICON_ORDER = [
-            'speed', 'stamina', 'power', 'guts', 'wit',
-            'turf', 'dirt', 'sprint', 'mile', 'mid', 'long',
-            'heart', 'clubs', 'ace', 'trash'
-        ];
+  <!-- ── Weights tab (collapsed by default) ──────────────────────────── -->
+  <details class="tab">
+    <summary>Weights</summary>
+    <div class="tab-body">
+      <div class="weights-grid">
 
-        const sortState = {};
-        let _lastResults = null;
-        let _lastTargetRace = null;
+        <div class="weight-group">
+          <div class="weight-group-label">Blues<span class="tip" data-tip="Stat-boost spark weights per rarity. A 3★ own speed spark adds this value to all icon scores.">i</span></div>
+          <table class="wt">
+            <tr><th></th><th>3★</th><th>2★</th><th>1★</th></tr>
+            <tr><td>own</td>
+              <td><input type="number" id="blueOwn3" step="0.1"></td>
+              <td><input type="number" id="blueOwn2" step="0.1"></td>
+              <td><input type="number" id="blueOwn1" step="0.1"></td>
+            </tr>
+            <tr><td>parent</td>
+              <td><input type="number" id="blueParent3" step="0.1"></td>
+              <td><input type="number" id="blueParent2" step="0.1"></td>
+              <td><input type="number" id="blueParent1" step="0.1"></td>
+            </tr>
+          </table>
+        </div>
 
-        // Load races on startup
-        async function loadRaces() {
-            const res = await fetch('/races');
-            if (!res.ok) return;
-            const races = await res.json();
-            const sel = document.getElementById('targetRace');
-            let lastCM = true;
-            for (const r of races) {
-                if (lastCM && !r.isCM && sel.options.length > 1) {
-                    const sep = document.createElement('option');
-                    sep.disabled = true;
-                    sep.textContent = '── G1 Races ──';
-                    sel.appendChild(sep);
-                }
-                lastCM = r.isCM;
-                const opt = document.createElement('option');
-                opt.value = r.raceId;
-                opt.textContent = `${r.raceName} (${r.distanceCategory} ${r.groundName} @ ${r.trackName})`;
-                sel.appendChild(opt);
-            }
+        <div class="weight-group">
+          <div class="weight-group-label">Pinks<span class="tip" data-tip="Aptitude spark weights per rarity. Turf/dirt/distance/style pinks. Own = on this uma, parent = from direct parents.">i</span></div>
+          <table class="wt">
+            <tr><th></th><th>3★</th><th>2★</th><th>1★</th></tr>
+            <tr><td>own</td>
+              <td><input type="number" id="pinkOwn3" step="0.1"></td>
+              <td><input type="number" id="pinkOwn2" step="0.1"></td>
+              <td><input type="number" id="pinkOwn1" step="0.1"></td>
+            </tr>
+            <tr><td>parent</td>
+              <td><input type="number" id="pinkParent3" step="0.1"></td>
+              <td><input type="number" id="pinkParent2" step="0.1"></td>
+              <td><input type="number" id="pinkParent1" step="0.1"></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="weight-group">
+          <div class="weight-group-label">Skill Sparks<span class="tip" data-tip="White-spark (skill hint) weights per rarity. Own = carried on this uma directly, parent = from parents. Skills matching the race surface/distance get a bonus.">i</span></div>
+          <table class="wt">
+            <tr><th></th><th>3★</th><th>2★</th><th>1★</th></tr>
+            <tr><td>own</td>
+              <td><input type="number" id="ssOwn3" step="0.1"></td>
+              <td><input type="number" id="ssOwn2" step="0.1"></td>
+              <td><input type="number" id="ssOwn1" step="0.1"></td>
+            </tr>
+            <tr><td>parent</td>
+              <td><input type="number" id="ssParent3" step="0.1"></td>
+              <td><input type="number" id="ssParent2" step="0.1"></td>
+              <td><input type="number" id="ssParent1" step="0.1"></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="weight-group">
+          <div class="weight-group-label">Stat Sparks<span class="tip" data-tip="Weights for stat-boosting skills found inside white sparks (e.g. Speed Up). Applied on top of the base skill-spark weight when such skills are detected.">i</span></div>
+          <table class="wt">
+            <tr><th></th><th>3★</th><th>2★</th><th>1★</th></tr>
+            <tr><td>own</td>
+              <td><input type="number" id="stOwn3" step="0.1"></td>
+              <td><input type="number" id="stOwn2" step="0.1"></td>
+              <td><input type="number" id="stOwn1" step="0.1"></td>
+            </tr>
+            <tr><td>parent</td>
+              <td><input type="number" id="stParent3" step="0.1"></td>
+              <td><input type="number" id="stParent2" step="0.1"></td>
+              <td><input type="number" id="stParent1" step="0.1"></td>
+            </tr>
+          </table>
+        </div>
+
+      </div>
+
+      <div class="misc-weights">
+        <div class="field">
+          <label>Parent weight<span class="tip" data-tip="Global multiplier on all parent-sourced contributions. Values below 1.0 discount inherited factors relative to own.">i</span></label>
+          <input type="number" id="weightParent" step="0.05" min="0" max="2">
+        </div>
+        <div class="field">
+          <label>Dirt affinity<span class="tip" data-tip="Extra score bonus applied when this uma's dominant surface is dirt. Rewards dirt-tuned umas in surface-agnostic scoring.">i</span></label>
+          <input type="number" id="dirtAffinity" step="0.1" min="0">
+        </div>
+        <div class="field">
+          <label>Unique mult<span class="tip" data-tip="Score multiplier applied when a uma's own unique (character signature) skill appears as a white spark. Rewards umas carrying their signature skill.">i</span></label>
+          <input type="number" id="uniqueMult" step="0.05" min="0">
+        </div>
+        <div class="field">
+          <label>Mismatch surface<span class="tip" data-tip="Multiplier applied to skills whose surface tag (turf/dirt) doesn't match the uma's dominant surface. Set to 0 to fully ignore mismatched skills.">i</span></label>
+          <input type="number" id="mmSurface" step="0.05" min="0">
+        </div>
+        <div class="field">
+          <label>Mismatch distance<span class="tip" data-tip="Multiplier applied to skills whose distance tag doesn't match the uma's dominant distance category. Set to 0 to fully ignore mismatched skills.">i</span></label>
+          <input type="number" id="mmDistance" step="0.05" min="0">
+        </div>
+        <div class="field">
+          <label>Mismatch style<span class="tip" data-tip="Multiplier applied to skills whose running-style tag doesn't match the uma's dominant style. Set to 0 to fully ignore mismatched skills.">i</span></label>
+          <input type="number" id="mmStyle" step="0.05" min="0">
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- ── Footer: reset / export / import ─────────────────────────────── -->
+  <div class="controls-footer">
+    <button class="secondary" onclick="resetToDefaults()">↺ Reset to defaults</button>
+    <div class="controls-footer-right">
+      <button class="secondary" onclick="exportConfig()">↑ Export config</button>
+      <button class="secondary" onclick="importConfig()">↓ Import config</button>
+    </div>
+  </div>
+
+</div>
+
+<div id="results" class="results"></div>
+<div id="grid-view"></div>
+
+<!-- ── Floating view toggle ───────────────────────────────────────────── -->
+<div class="view-fab" id="viewFab">
+  <div class="fab-inner">
+    <select id="gridFilter" onchange="onGridFilterChange()">
+      <option value="all">All</option>
+      <option value="locked">🔒 Locked</option>
+      <option value="unlocked">Unlocked</option>
+    </select>
+    <button id="viewToggleBtn" onclick="toggleView()">⊞ Grid</button>
+  </div>
+</div>
+
+<div class="hover-card" id="hoverCard">
+  <div class="hc-summary"></div>
+  <div class="hc-detail"></div>
+</div>
+
+<script>
+  // ── Constants ──────────────────────────────────────────────────────────
+  const ICON_ORDER = ['sprint', 'mile', 'mid', 'long', 'dirt', 'heart', 'clubs', 'ace', 'trash', 'skip'];
+
+  const ICON_LABEL = {
+    sprint: '👟 Sprint',
+    mile:   '👟 Mile',
+    mid:    '👟 Mid',
+    long:   '👟 Long',
+    dirt:   '👟 Dirt',
+    heart:  '♥ Heart (skills)',
+    clubs:  '♣ Clubs (debuffer)',
+    ace:    '♠ Ace',
+    trash:  '🗑️ Transfer',
+    skip:   '— Unlisted',
+    unlock: '— Unlock',
+  };
+
+  // Badge style for grid view (fallback when no image)
+  const ICON_BADGE = {
+    sprint: { bg: '#8e44ad', fg: '#fff', label: 'SP' },
+    mile:   { bg: '#27ae60', fg: '#fff', label: 'MI' },
+    mid:    { bg: '#d4a00a', fg: '#fff', label: 'MD' },
+    long:   { bg: '#2980b9', fg: '#fff', label: 'LG' },
+    dirt:   { bg: '#c0392b', fg: '#fff', label: 'DT' },
+    heart:  { bg: '#f8ddf0', fg: '#c0392b', label: 'HT' },
+    clubs:  { bg: '#e8f8e8', fg: '#27ae60', label: 'CB' },
+    ace:    { bg: '#333',    fg: '#fff',    label: 'AC' },
+    trash:  { bg: '#aaa',    fg: '#fff',    label: 'TR' },
+    skip:   { bg: '#ddd',    fg: '#888',    label: '--' },
+    unlock: { bg: '#f8ddd8', fg: '#c0392b', label: 'XX' },
+  };
+
+  // Image icons served from /icons/ — mapped to classifier icon keys
+  const ICON_IMG = {
+    sprint: '/icons/10_shoe_pink.png',
+    mile:   '/icons/11_shoe_green.png',
+    mid:    '/icons/12_shoe_yellow.png',
+    long:   '/icons/13_shoe_blue.png',
+    dirt:   '/icons/14_shoe_red.png',
+    heart:  '/icons/08_heart.png',
+    clubs:  '/icons/09_clubs.png',
+    ace:    '/icons/07_spade.png',
+    trash:  '/icons/16_trash.png',
+  };
+
+  // ── Default settings (mirrors DEFAULT_CONFIG + UI prefs) ──────────────
+  const DEFAULTS = {
+    keepN: 7, maxPerIcon: 10, numTrash: 50, raceTopN: 7,
+    aceThresh: 12500, keepAce: 15,
+    heartThresh: 20,  keepHeart: 20,
+    minScore: 2,
+    weightParent: 0.4,  dirtAffinity: 2,  uniqueMult: 1.2,
+    mmSurface: 0.0,     mmDistance: 0.0,  mmStyle: 0.0,
+    blueOwn3: 4.0,   blueOwn2: 1.5,   blueOwn1: -0.7,
+    blueParent3: 1.5, blueParent2: 0.6, blueParent1: 0.1,
+    pinkOwn3: 4.0,   pinkOwn2: 1.5,   pinkOwn1: -0.7,
+    pinkParent3: 1.5, pinkParent2: 0.6, pinkParent1: 0.1,
+    ssOwn3: 3.0,   ssOwn2: 1.4,   ssOwn1: 0.5,
+    ssParent3: 2.0, ssParent2: 0.8, ssParent1: 0.2,
+    stOwn3: 4.0,   stOwn2: 3.0,   stOwn1: 1.0,
+    stParent3: 3.0, stParent2: 2.0, stParent1: 0.8,
+  };
+
+  const SETTINGS_KEY = 'uma-settings';
+
+  function g(id) { return document.getElementById(id); }
+  function gv(id) { return g(id)?.value ?? ''; }
+
+  // ── localStorage settings ─────────────────────────────────────────────
+  function saveSettings() {
+    const saved = {};
+    for (const id of Object.keys(DEFAULTS)) {
+      const el = g(id);
+      if (el) saved[id] = el.type === 'number' ? parseFloat(el.value) : el.value;
+    }
+    // Also save race select
+    saved._targetRace = gv('targetRace');
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(saved));
+  }
+
+  function loadSettings() {
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
+    const merged = { ...DEFAULTS, ...saved };
+    for (const [id, val] of Object.entries(merged)) {
+      if (id.startsWith('_')) continue;
+      const el = g(id);
+      if (el) el.value = val;
+    }
+    // _targetRace restored after races load (async)
+    return saved._targetRace ?? '';
+  }
+
+  function resetToDefaults() {
+    localStorage.removeItem(SETTINGS_KEY);
+    for (const [id, val] of Object.entries(DEFAULTS)) {
+      const el = g(id);
+      if (el) el.value = val;
+    }
+    g('targetRace').value = '';
+  }
+
+  function exportConfig() {
+    const saved = {};
+    for (const id of Object.keys(DEFAULTS)) {
+      const el = g(id);
+      if (el) saved[id] = el.type === 'number' ? parseFloat(el.value) : el.value;
+    }
+    const blob = new Blob([JSON.stringify(saved, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'uma-config.json';
+    a.click();
+  }
+
+  function importConfig() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const settings = JSON.parse(await file.text());
+        const merged = { ...DEFAULTS, ...settings };
+        for (const [id, val] of Object.entries(merged)) {
+          const el = g(id);
+          if (el) el.value = val;
         }
+        saveSettings();
+      } catch (err) {
+        alert('Failed to import config: ' + err.message);
+      }
+    };
+    input.click();
+  }
 
-        loadRaces();
+  // Attach change listener to all settings inputs
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.controls input, .controls select').forEach(el => {
+      el.addEventListener('change', saveSettings);
+    });
+  });
 
-        async function run() {
-            const file = document.getElementById('fileInput').files[0];
-            if (!file) { alert('Please select a JSON file.'); return; }
+  // ── Race loader ───────────────────────────────────────────────────────
+  async function loadRaces() {
+    const savedRace = loadSettings();
+    const res = await fetch('/races');
+    if (!res.ok) return;
+    const races = await res.json();
+    const sel = g('targetRace');
+    let lastCM = true;
+    for (const r of races) {
+      if (lastCM && !r.isCM && sel.options.length > 1) {
+        const sep = document.createElement('option');
+        sep.disabled = true;
+        sep.textContent = '── G1 Races ──';
+        sel.appendChild(sep);
+      }
+      lastCM = r.isCM;
+      const opt = document.createElement('option');
+      opt.value = r.raceId;
+      opt.textContent = `${r.raceName} (${r.distanceCategory} ${r.groundName} @ ${r.trackName})`;
+      sel.appendChild(opt);
+    }
+    if (savedRace) sel.value = savedRace;
+  }
+  loadRaces();
 
-            const config = {
-                keepPerArchetype: parseInt(document.getElementById('keepN').value),
-                minCategoryScore: parseFloat(document.getElementById('minScore').value),
-                heartWhiteThreshold: parseFloat(document.getElementById('heartThresh').value),
-                aceScoreThreshold: parseInt(document.getElementById('aceThresh').value),
-                keepAce: parseInt(document.getElementById('keepAce').value),
-                keepHeart: parseInt(document.getElementById('keepHeart').value),
-                weights: {
-                    own: parseFloat(document.getElementById('weightOwn').value),
-                    parent: parseFloat(document.getElementById('weightParent').value),
-                },
-            };
+  // ── State ─────────────────────────────────────────────────────────────
+  const sortState = {};
+  let _lastResults = null;
+  let _lastTargetRace = null;
+  let _gridMode = false;
 
-            const targetRaceId = document.getElementById('targetRace').value;
-            const text = await file.text();
-            const res = await fetch('/classify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    data: JSON.parse(text),
-                    config,
-                    targetRaceId: targetRaceId ? parseInt(targetRaceId) : null,
-                }),
-            });
+  // ── Classification ────────────────────────────────────────────────────
+  async function run() {
+    const file = g('fileInput').files[0];
+    if (!file) { alert('Please select a JSON file.'); return; }
 
-            const out = document.getElementById('results');
-            out.style.display = 'block';
+    const config = {
+      keepPerArchetype: parseInt(gv('keepN')),
+      maxPerIcon:       parseInt(gv('maxPerIcon')),
+      numTrash:         parseInt(gv('numTrash')),
+      minCategoryScore: parseFloat(gv('minScore')),
+      heartWhiteThreshold: parseFloat(gv('heartThresh')),
+      aceScoreThreshold:   parseInt(gv('aceThresh')),
+      keepAce:   parseInt(gv('keepAce')),
+      keepHeart: parseInt(gv('keepHeart')),
+      weights: {
+        parent: parseFloat(gv('weightParent')),
+        blue: {
+          own:    { 3: parseFloat(gv('blueOwn3')),   2: parseFloat(gv('blueOwn2')),   1: parseFloat(gv('blueOwn1'))   },
+          parent: { 3: parseFloat(gv('blueParent3')), 2: parseFloat(gv('blueParent2')), 1: parseFloat(gv('blueParent1')) },
+        },
+        pink: {
+          own:    { 3: parseFloat(gv('pinkOwn3')),   2: parseFloat(gv('pinkOwn2')),   1: parseFloat(gv('pinkOwn1'))   },
+          parent: { 3: parseFloat(gv('pinkParent3')), 2: parseFloat(gv('pinkParent2')), 1: parseFloat(gv('pinkParent1')) },
+        },
+        skillSparks: {
+          own:    { 3: parseFloat(gv('ssOwn3')),   2: parseFloat(gv('ssOwn2')),   1: parseFloat(gv('ssOwn1'))   },
+          parent: { 3: parseFloat(gv('ssParent3')), 2: parseFloat(gv('ssParent2')), 1: parseFloat(gv('ssParent1')) },
+        },
+        statSparks: {
+          own:    { 3: parseFloat(gv('stOwn3')),   2: parseFloat(gv('stOwn2')),   1: parseFloat(gv('stOwn1'))   },
+          parent: { 3: parseFloat(gv('stParent3')), 2: parseFloat(gv('stParent2')), 1: parseFloat(gv('stParent1')) },
+        },
+        mismatchMult: {
+          surface:      parseFloat(gv('mmSurface')),
+          distance:     parseFloat(gv('mmDistance')),
+          style:        parseFloat(gv('mmStyle')),
+          dirtAffinity: parseFloat(gv('dirtAffinity')),
+        },
+        uniqueMult: parseFloat(gv('uniqueMult')),
+      },
+    };
 
-            if (!res.ok) {
-                out.innerHTML = '<div class="error">Error: ' + (await res.text()) + '</div>';
-                return;
-            }
+    const targetRaceId = gv('targetRace');
+    const text = await file.text();
 
-            const { results, targetRace } = await res.json();
-            _lastTargetRace = targetRace;
-            renderResults(results);
-        }
+    const res = await fetch('/classify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: JSON.parse(text),
+        config,
+        targetRaceId: targetRaceId ? parseInt(targetRaceId) : null,
+      }),
+    });
 
-        function sortRows(rows, col, dir) {
-            return [...rows].sort((a, b) => {
-                let av, bv;
-                switch (col) {
-                    case 'name': av = a.name; bv = b.name; break;
-                    case 'id': av = a.trained_chara_id; bv = b.trained_chara_id; break;
-                    case 'rs': av = a.rank_score; bv = b.rank_score; break;
-                    case 'white': av = a.white_total; bv = b.white_total; break;
-                    case 'debuff': av = a.debuff_score; bv = b.debuff_score; break;
-                    case 'race': av = a.race_score ?? 0; bv = b.race_score ?? 0; break;
-                    case 'cat': av = a._catScore; bv = b._catScore; break;
-                    default: av = 0; bv = 0;
-                }
-                if (typeof av === 'string') return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
-                return dir === 'asc' ? av - bv : bv - av;
-            });
-        }
+    g('results').style.display = 'block';
 
-        function renderRaceSection(results, targetRace, topN) {
-            if (!targetRace) return '';
+    if (!res.ok) {
+      g('results').innerHTML = '<div class="error">Error: ' + (await res.text()) + '</div>';
+      return;
+    }
 
-            const candidates = [...results]
-                .filter(u => (u.race_score ?? 0) > 0)
-                .sort((a, b) => (b.race_score ?? 0) - (a.race_score ?? 0))
-                .slice(0, topN);
+    const { results, targetRace } = await res.json();
+    _lastTargetRace = targetRace;
+    _lastResults    = null;   // reset before render
+    renderResults(results);
 
-            if (candidates.length === 0) return '';
+    // Show the FAB now that we have results
+    g('viewFab').style.display = 'flex';
 
-            const maxScore = Math.max(...candidates.map(u => u.race_score ?? 0), 1);
+    // If we're already in grid mode, re-render grid
+    if (_gridMode) renderGrid();
+  }
 
-            const tableRows = candidates.map(u => {
-                const barW = Math.round(((u.race_score ?? 0) / maxScore) * 80);
-                const lock = u.is_locked ? '🔒 ' : '';
-                const icon = ICON_LABEL[u.assigned_icon] ?? u.assigned_icon;
-                const whitesJson = JSON.stringify(u.whites ?? []).replace(/"/g, '&quot;');
-                return `<tr class="has-whites" data-whites="${whitesJson}">
-                    <td>${lock}${u.name}</td>
-                    <td style="color:#aaa">${u.trained_chara_id}</td>
-                    <td>${u.rank_score.toLocaleString()}</td>
-                    <td>${u.white_total.toFixed(1)}</td>
-                    <td class="race-score"><span class="score-bar" style="width:${barW}px"></span>${(u.race_score ?? 0).toFixed(1)}</td>
-                    <td style="color:#888;font-size:0.8rem">${icon}</td>
-                </tr>`;
-            }).join('');
+  // ── Sorting ───────────────────────────────────────────────────────────
+  function sortRows(rows, col, dir) {
+    return [...rows].sort((a, b) => {
+      let av, bv;
+      switch (col) {
+        case 'name':  av = a.name ?? '';               bv = b.name ?? '';               break;
+        case 'id':    av = a.trained_chara_id;          bv = b.trained_chara_id;          break;
+        case 'rs':    av = a.rank_score;               bv = b.rank_score;               break;
+        case 'white': av = a.white_total;              bv = b.white_total;              break;
+        case 'debuff':av = a.debuff_score;             bv = b.debuff_score;             break;
+        case 'race':  av = a.race_score ?? 0;          bv = b.race_score ?? 0;          break;
+        case 'cat':   av = a._catScore;                bv = b._catScore;                break;
+        case 'arch':  av = a.archetype_label?.label ?? ''; bv = b.archetype_label?.label ?? ''; break;
+        default: av = 0; bv = 0;
+      }
+      if (typeof av === 'string') return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+      return dir === 'asc' ? av - bv : bv - av;
+    });
+  }
 
-            return `<div class="race-section">
-                <div class="group-header">
-                    <span>🤝 Top parents for ${targetRace.raceName} — ${targetRace.distanceCategory} ${targetRace.groundName} @ ${targetRace.trackName}</span>
-                    <span style="font-weight:400;opacity:0.85">${candidates.length} umas</span>
-                </div>
-                <div class="group-body">
-                    <table>
-                        <tr>
-                            <th>Name</th><th>ID</th><th>Rank Score</th>
-                            <th>White ★</th><th>Race Score</th><th>Icon</th>
-                        </tr>
-                        ${tableRows}
-                    </table>
-                </div>
-            </div>`;
-        }
+  // ── Group helpers ─────────────────────────────────────────────────────
+  function getCatScore(u) {
+    switch (u.assigned_icon) {
+      case 'clubs': return u.debuff_score;
+      case 'heart': return u.white_total;
+      default:      return u.scores?.[u.assigned_icon] ?? u.quality_score ?? 0;
+    }
+  }
 
-        function renderGroup(icon, umas, showRaceScore) {
-            if (umas.length === 0) return '';
+  function groupResults(results) {
+    const groups = {};
+    for (const icon of ICON_ORDER) groups[icon] = [];
+    for (const u of results) {
+      const icon = u.assigned_icon ?? 'skip';
+      if (!groups[icon]) groups[icon] = [];
+      groups[icon].push({ ...u, name: u.name ?? ('card:' + u.card_id), _catScore: getCatScore(u) });
+    }
+    return groups;
+  }
 
-            const state = sortState[icon] ?? { col: 'rs', dir: 'desc' };
-            const rows = sortRows(umas, state.col, state.dir);
-            const maxCat = Math.max(...umas.map(u => u._catScore), 1);
+  // ── Race section ──────────────────────────────────────────────────────
+  function renderRaceSection(results, targetRace, topN) {
+    if (!targetRace) return '';
 
-            const cols = [
-                { key: 'name', label: 'Name' },
-                { key: 'id', label: 'ID' },
-                { key: 'rs', label: 'Rank Score' },
-                { key: 'white', label: 'White ★' },
-                { key: 'debuff', label: 'Debuff ★' },
-                ...(showRaceScore ? [{ key: 'race', label: '🤝 Race' }] : []),
-                { key: 'cat', label: 'Cat. Score' },
-            ];
+    const candidates = [...results]
+      .filter(u => (u.race_score ?? 0) > 0)
+      .sort((a, b) => (b.race_score ?? 0) - (a.race_score ?? 0))
+      .slice(0, topN);
 
-            const headers = cols.map(c => {
-                const isSort = state.col === c.key;
-                const cls = ['sortable', isSort ? ('sort-' + state.dir) : ''].filter(Boolean).join(' ');
-                return `<th class="${cls}" onclick="toggleSort('${icon}','${c.key}')">${c.label}</th>`;
-            }).join('');
+    if (candidates.length === 0) return '';
 
-            const tableRows = rows.map(u => {
-                const barW = Math.round((u._catScore / maxCat) * 80);
-                const lock = u.is_locked ? '🔒 ' : '';
-                const whitesJson = JSON.stringify(u.whites ?? []).replace(/"/g, '&quot;');
-                const raceCell = showRaceScore
-                    ? `<td class="race-score">${(u.race_score ?? 0).toFixed(1)}</td>`
-                    : '';
-                return `<tr class="has-whites" data-whites="${whitesJson}">
-                    <td>${lock}${u.name}</td>
-                    <td style="color:#aaa">${u.trained_chara_id}</td>
-                    <td>${u.rank_score.toLocaleString()}</td>
-                    <td>${u.white_total.toFixed(1)}</td>
-                    <td>${u.debuff_score.toFixed(1)}</td>
-                    ${raceCell}
-                    <td><span class="score-bar" style="width:${barW}px"></span>${u._catScore.toFixed(1)}</td>
-                </tr>`;
-            }).join('');
+    const maxScore = Math.max(...candidates.map(u => u.race_score ?? 0), 1);
 
-            return `<div class="group icon-${icon}" id="group-${icon}">
-                <div class="group-header">
-                    <span>${ICON_LABEL[icon]}</span>
-                    <span style="font-weight:400;opacity:0.7">${umas.length} umas</span>
-                </div>
-                <div class="group-body">
-                    <table>
-                        <tr>${headers}<th></th></tr>
-                        ${tableRows}
-                    </table>
-                </div>
-            </div>`;
-        }
+    const tableRows = candidates.map(u => {
+      const barW = Math.round(((u.race_score ?? 0) / maxScore) * 80);
+      const lock = u.is_locked ? '🔒 ' : '';
+      const icon = ICON_LABEL[u.assigned_icon] ?? u.assigned_icon;
+      return `<tr class="has-hover" data-uma-id="${u.trained_chara_id}">
+        <td>${lock}${u.name}</td>
+        <td style="color:#aaa">${u.trained_chara_id}</td>
+        <td>${u.rank_score.toLocaleString()}</td>
+        <td>${u.white_total.toFixed(1)}</td>
+        <td class="race-score"><span class="score-bar" style="width:${barW}px"></span>${(u.race_score ?? 0).toFixed(1)}</td>
+        <td style="color:#888;font-size:0.8rem">${icon}</td>
+      </tr>`;
+    }).join('');
 
-        function toggleSort(icon, col) {
-            const state = sortState[icon] ?? { col: 'rs', dir: 'desc' };
-            if (state.col === col) {
-                sortState[icon] = { col, dir: state.dir === 'desc' ? 'asc' : 'desc' };
-            } else {
-                sortState[icon] = { col, dir: 'desc' };
-            }
-            const el = document.getElementById('group-' + icon);
-            if (el && _lastResults) {
-                const groups = groupResults(_lastResults);
-                const showRaceScore = !!_lastTargetRace;
-                el.outerHTML = renderGroup(icon, groups[icon], showRaceScore);
-            }
-        }
+    return `<div class="race-section">
+      <div class="group-header">
+        <span>🤝 Top parents for ${targetRace.raceName} — ${targetRace.distanceCategory} ${targetRace.groundName} @ ${targetRace.trackName}</span>
+        <span style="font-weight:400;opacity:0.85">${candidates.length} umas</span>
+      </div>
+      <div class="group-body">
+        <table>
+          <tr><th>Name</th><th>ID</th><th>Rank Score</th><th>White ★</th><th>Race Score</th><th>Icon</th></tr>
+          ${tableRows}
+        </table>
+      </div>
+    </div>`;
+  }
 
-        function groupResults(results) {
-            const groups = {};
-            for (const icon of ICON_ORDER) groups[icon] = [];
-            for (const u of results) {
-                const catScore = u.scores[u.assigned_icon] ?? 0;
-                groups[u.assigned_icon].push({ ...u, name: u.name ?? ('card:' + u.card_id), _catScore: catScore });
-            }
-            return groups;
-        }
+  // ── Icon group ────────────────────────────────────────────────────────
+  function renderGroup(icon, umas, showRaceScore) {
+    if (umas.length === 0) return '';
 
-        function renderResults(results) {
-            _lastResults = results;
-            const groups = groupResults(results);
-            const out = document.getElementById('results');
-            const showRaceScore = !!_lastTargetRace;
-            const topN = parseInt(document.getElementById('raceTopN').value) || 7;
+    // Default sort: archetype label ascending (groups same archetype together)
+    const state = sortState[icon] ?? { col: 'arch', dir: 'asc' };
+    const rows = sortRows(umas, state.col, state.dir);
+    const maxCat = Math.max(...umas.map(u => u._catScore), 1);
 
-            const total = results.length;
-            const kept = results.filter(u => u.assigned_icon !== 'trash').length;
+    const cols = [
+      { key: 'name',  label: 'Name' },
+      { key: 'id',    label: 'ID' },
+      { key: 'arch',  label: 'Archetype' },
+      { key: 'rs',    label: 'Rank Score' },
+      { key: 'white', label: 'White ★' },
+      { key: 'debuff',label: 'Debuff ★' },
+      ...(showRaceScore ? [{ key: 'race', label: '🤝 Race' }] : []),
+      { key: 'cat',   label: icon === 'clubs' ? 'Debuff Score' : 'Cat. Score' },
+    ];
 
-            let html = '<div class="summary">';
-            for (const icon of ICON_ORDER) {
-                if (groups[icon].length > 0)
-                    html += `<span class="summary-chip">${ICON_LABEL[icon]}: <b>${groups[icon].length}</b></span>`;
-            }
-            html += `<span class="summary-total">Keeping ${kept} / ${total} &nbsp;|&nbsp; Transferring ${total - kept}</span>`;
-            html += '</div>';
+    const headers = cols.map(c => {
+      const isSort = state.col === c.key;
+      const cls = ['sortable', isSort ? ('sort-' + state.dir) : ''].filter(Boolean).join(' ');
+      return `<th class="${cls}" onclick="toggleSort('${icon}','${c.key}')">${c.label}</th>`;
+    }).join('');
 
-            // Race section first if a race is selected
-            html += renderRaceSection(results, _lastTargetRace, topN);
+    const tableRows = rows.map(u => {
+      const barW = Math.round((u._catScore / maxCat) * 80);
+      const lock = u.is_locked ? '🔒 ' : '';
+      const arch = u.archetype_label?.label ?? '—';
+      const raceCell = showRaceScore
+        ? `<td class="race-score">${(u.race_score ?? 0).toFixed(1)}</td>`
+        : '';
+      return `<tr class="has-hover" data-uma-id="${u.trained_chara_id}">
+        <td>${lock}${u.name}</td>
+        <td style="color:#aaa">${u.trained_chara_id}</td>
+        <td class="arch-label">${arch}</td>
+        <td>${u.rank_score.toLocaleString()}</td>
+        <td>${u.white_total.toFixed(1)}</td>
+        <td>${u.debuff_score.toFixed(1)}</td>
+        ${raceCell}
+        <td><span class="score-bar" style="width:${barW}px"></span>${u._catScore.toFixed(1)}</td>
+      </tr>`;
+    }).join('');
 
-            for (const icon of ICON_ORDER) {
-                html += renderGroup(icon, groups[icon], showRaceScore);
-            }
+    return `<div class="group icon-${icon}" id="group-${icon}">
+      <div class="group-header">
+        <span>${ICON_LABEL[icon] ?? icon}</span>
+        <span style="font-weight:400;opacity:0.7">${umas.length} umas</span>
+      </div>
+      <div class="group-body">
+        <table>
+          <tr>${headers}<th></th></tr>
+          ${tableRows}
+        </table>
+      </div>
+    </div>`;
+  }
 
-            out.innerHTML = html;
-        }
-    </script>
+  function toggleSort(icon, col) {
+    const state = sortState[icon] ?? { col: 'arch', dir: 'asc' };
+    sortState[icon] = {
+      col,
+      dir: state.col === col ? (state.dir === 'desc' ? 'asc' : 'desc') : 'desc',
+    };
+    const el = g('group-' + icon);
+    if (el && _lastResults) {
+      const groups = groupResults(_lastResults);
+      el.outerHTML = renderGroup(icon, groups[icon], !!_lastTargetRace);
+    }
+  }
 
-    <div class="hover-card" id="hoverCard"></div>
+  // ── Table view ────────────────────────────────────────────────────────
+  function renderResults(results) {
+    _lastResults = results;
+    const groups = groupResults(results);
+    const out = g('results');
+    const showRaceScore = !!_lastTargetRace;
+    const topN = parseInt(gv('raceTopN')) || 7;
 
-    <script>
-        const hoverCard = document.getElementById('hoverCard');
+    const total = results.length;
+    const kept  = results.filter(u => u.assigned_icon !== 'trash').length;
 
-        document.addEventListener('mousemove', e => {
-            const row = e.target.closest('.has-whites');
-            if (!row) {
-                hoverCard.style.display = 'none';
-                return;
-            }
+    let html = '<div class="summary">';
+    for (const icon of ICON_ORDER) {
+      if (icon === 'skip') continue;
+      if (groups[icon]?.length > 0)
+        html += `<span class="summary-chip">${ICON_LABEL[icon] ?? icon}: <b>${groups[icon].length}</b></span>`;
+    }
+    html += `<span class="summary-total">Keeping ${kept} / ${total} &nbsp;|&nbsp; Transferring ${total - kept}</span>`;
+    html += '</div>';
 
-            const whites = JSON.parse(row.dataset.whites);
-            if (!whites || whites.length === 0) {
-                hoverCard.style.display = 'none';
-                return;
-            }
+    html += renderRaceSection(results, _lastTargetRace, topN);
 
-            // Sort by contribution descending
-            whites.sort((a, b) => b.contribution - a.contribution);
+    for (const icon of ICON_ORDER) {
+      if (icon === 'skip') continue;
+      html += renderGroup(icon, groups[icon] ?? [], showRaceScore);
+    }
 
-            const rows = whites.map(w => {
-                const tags = [
-                    ...w.dist_cats.map(c => `<span class="tag tag-dist">${c}</span>`),
-                    ...w.style_cats.map(c => `<span class="tag tag-style">${c}</span>`),
-                    ...w.surf_cats.map(c => `<span class="tag tag-surf">${c}</span>`),
-                    ...(w.is_debuff ? ['<span class="tag tag-debuff">debuff</span>'] : []),
-                ].join('');
-                const src = w.source === 'own'
-                    ? '<span class="src-own">own</span>'
-                    : '<span class="src-parent">parent</span>';
-                const pm = w.pink_multiplier === 1.0 ? '-' : w.pink_multiplier.toFixed(2) + 'x';
-                const sb = w.special_bonus === 1.0 ? '-' : w.special_bonus.toFixed(1) + 'x';
-                return `<tr>
-                    <td>${src}</td>
-                    <td>${'★'.repeat(w.stars)}</td>
-                    <td>${w.name}${tags ? '<br>' + tags : ''}</td>
-                    <td style="color:#aaa">${pm}</td>
-                    <td style="color:#aaa">${sb}</td>
-                    <td style="font-weight:600">${w.contribution.toFixed(2)}</td>
-                </tr>`;
-            }).join('');
+    out.innerHTML = html;
+  }
 
-            hoverCard.innerHTML = `<h4>White sparks</h4>
-                <table>
-                    <tr>
-                    <th>src</th><th>★</th><th>skill</th>
-                    <th>pink×</th><th>bonus×</th><th>value</th>
-                    </tr>
-                    ${rows}
-                </table>`;
+  // ── Grid view ─────────────────────────────────────────────────────────
+  function renderGrid() {
+    if (!_lastResults) return;
+    const filter = gv('gridFilter');
 
-            // Position near cursor, keep on screen
-            const pad = 16;
-            hoverCard.style.visibility = 'hidden';
-            hoverCard.style.display = 'block';
-            const rect = hoverCard.getBoundingClientRect();
-            const cardW = rect.width;
-            const cardH = rect.height;
+    let sorted = [..._lastResults];
+    if (filter === 'locked')   sorted = sorted.filter(u => u.is_locked);
+    if (filter === 'unlocked') sorted = sorted.filter(u => !u.is_locked);
+    sorted.sort((a, b) => b.rank_score - a.rank_score);
 
-            let x = e.clientX + pad;
-            let y = e.clientY + pad;
+    const container = g('grid-view');
 
-            // Flip left if overflowing right edge
-            if (x + cardW > window.innerWidth) x = e.clientX - cardW - pad;
-            // Hard clamp all four edges — card never leaves viewport
-            x = Math.min(Math.max(pad, x), window.innerWidth - cardW - pad);
-            y = Math.min(Math.max(pad, y), window.innerHeight - cardH - pad);
+    if (sorted.length === 0) {
+      container.innerHTML = '<p style="color:#888;padding:1rem 0">No umas match the filter.</p>';
+      return;
+    }
 
-            hoverCard.style.left = x + 'px';
-            hoverCard.style.top = y + 'px';
-            hoverCard.style.visibility = 'visible';
-        });
-    </script>
+    const cells = sorted.map(u => {
+      const icon  = u.assigned_icon ?? 'skip';
+      const imgSrc = ICON_IMG[icon];
+      const badge  = ICON_BADGE[icon] ?? ICON_BADGE.skip;
+      const name   = (u.name ?? ('card:' + u.card_id)).slice(0, 18);
+      const arch   = u.archetype_label?.label ?? '—';
+      const lock   = u.is_locked ? '🔒 ' : '';
+      const iconEl = imgSrc
+        ? `<img class="grid-icon-img" src="${imgSrc}" alt="${icon}">`
+        : `<span class="grid-badge" style="background:${badge.bg};color:${badge.fg}">${badge.label}</span>`;
+      return `<div class="grid-cell has-hover" data-uma-id="${u.trained_chara_id}">
+        <div class="grid-cell-inner">
+          <div>${iconEl}</div>
+          <div class="grid-cell-text">
+            <div class="grid-name">${lock}${name}</div>
+            <div class="grid-rs">${u.rank_score.toLocaleString()}</div>
+            <div class="grid-arch">${arch}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    const filterLabel = filter === 'all' ? '' : ` · ${filter}`;
+    container.innerHTML = `
+      <div class="grid-view-header">
+        <span><b>Veterans Grid</b>${filterLabel}</span>
+        <span>${sorted.length} umas</span>
+      </div>
+      <div class="grid-container">${cells}</div>`;
+  }
+
+  function onGridFilterChange() {
+    saveSettings();
+    if (_gridMode) renderGrid();
+  }
+
+  function toggleView() {
+    _gridMode = !_gridMode;
+    if (_gridMode) {
+      g('results').style.display = 'none';
+      g('grid-view').style.display = 'block';
+      g('viewToggleBtn').textContent = '☰ Table';
+      renderGrid();
+    } else {
+      g('results').style.display = 'block';
+      g('grid-view').style.display = 'none';
+      g('viewToggleBtn').textContent = '⊞ Grid';
+    }
+  }
+
+  // ── Hover card ────────────────────────────────────────────────────────
+  const hoverCard  = g('hoverCard');
+  const hcSummary  = hoverCard.querySelector('.hc-summary');
+  const hcDetail   = hoverCard.querySelector('.hc-detail');
+  let _pinnedUmaId = null;
+
+  const srcTag   = f => f.source === 'own'
+    ? '<span class="src-own">own</span>'
+    : '<span class="src-parent">par</span>';
+  const starStr  = (f, color) =>
+    `<span style="color:${color};font-size:0.7rem">${'★'.repeat(f.stars)}${'☆'.repeat(3 - f.stars)}</span>`;
+
+  function buildSummary(uma) {
+    const factors  = uma.factors ?? [];
+    const arch     = uma.archetype_label?.label ?? '—';
+    const lock     = uma.is_locked ? '🔒 ' : '';
+
+    const blues   = factors.filter(f => f.type === 'blue').sort((a, b) => b.contribution - a.contribution);
+    const pinks   = factors.filter(f => f.type === 'pink').sort((a, b) => b.contribution - a.contribution);
+    const uniques = factors.filter(f => f.type === 'unique').sort((a, b) => b.contribution - a.contribution);
+    const whites  = factors.filter(f => f.type === 'white');
+
+    const blueRows = blues.map(f => `<tr>
+      <td>${srcTag(f)}</td><td>${starStr(f, '#bbb')}</td>
+      <td style="color:#668">${f.category}</td>
+      <td style="font-weight:600;color:${f.contribution < 0 ? '#c00' : 'inherit'}">${f.contribution.toFixed(2)}</td>
+    </tr>`).join('');
+
+    const pinkRows = pinks.map(f => {
+      const dim = f.secondary_category === 'dominant' ? ' <span class="tag tag-style">dom</span>' : '';
+      return `<tr>
+        <td>${srcTag(f)}</td><td>${starStr(f, '#bbb')}</td>
+        <td style="color:#846">${f.category}${dim}</td>
+        <td style="font-weight:600;color:${f.contribution < 0 ? '#c00' : 'inherit'}">${f.contribution.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+
+    const uniqueRows = uniques.map(u => `<tr>
+      <td>${srcTag(u)}</td><td>${starStr(u, '#5a5')}</td>
+      <td style="color:#464">${u.name}</td>
+      <td style="font-weight:600">${u.contribution.toFixed(2)}</td>
+    </tr>`).join('');
+
+    const section = (label, headers, rows) => !rows ? '' : `
+      <div class="hc-section-label">${label}</div>
+      <table><tr>${headers}</tr>${rows}</table>`;
+
+    const expandHint = whites.length
+      ? `<div class="hc-expand-hint">+ ${whites.length} white skills — click for details</div>`
+      : '';
+
+    // Blues, pinks, uniques stacked vertically in a single column
+    return `<div class="hc-name">${lock}${uma.name ?? uma.trained_chara_id}</div>
+      <div class="hc-meta">${uma.rank_score.toLocaleString()} &nbsp;·&nbsp; ${arch}</div>
+      ${section('Blues',  '<th>src</th><th>★</th><th>stat</th><th>val</th>',      blueRows)}
+      ${section('Pinks',  '<th>src</th><th>★</th><th>category</th><th>val</th>',  pinkRows)}
+      ${section('Unique', '<th>src</th><th>★</th><th>skill</th><th>val</th>',     uniqueRows)}
+      ${expandHint}`;
+  }
+
+  function buildDetail(uma) {
+    const whites = (uma.factors ?? [])
+      .filter(f => f.type === 'white')
+      .sort((a, b) => b.contribution - a.contribution);
+
+    const whiteItems = whites.map(w => {
+      const starColor = w.is_debuff ? '#c44' : '#bbb';
+      const valColor  = w.contribution < 0 ? '#c00' : '#555';
+      return `<div class="white-item" title="${w.name}">
+        ${srcTag(w)}
+        ${starStr(w, starColor)}
+        <span class="white-name">${w.name}</span>
+        <span class="white-val" style="color:${valColor}">${w.contribution.toFixed(2)}</span>
+      </div>`;
+    }).join('');
+
+    return `<div class="hc-detail-inner">
+      <div class="hc-section-label" style="margin-top:0">White Skills (${whites.length})</div>
+      <div class="white-grid">${whiteItems}</div>
+      <div class="hc-collapse-hint">▲ click to collapse</div>
+    </div>`;
+  }
+
+  function positionCard(cx, cy) {
+    const pad = 16;
+    hoverCard.style.visibility = 'hidden';
+    hoverCard.style.display    = 'flex';
+    const rect = hoverCard.getBoundingClientRect();
+    let x = cx + pad;
+    let y = cy + pad;
+    if (x + rect.width  > window.innerWidth)  x = cx - rect.width  - pad;
+    x = Math.min(Math.max(pad, x), window.innerWidth  - rect.width  - pad);
+    y = Math.min(Math.max(pad, y), window.innerHeight - rect.height - pad);
+    hoverCard.style.left       = x + 'px';
+    hoverCard.style.top        = y + 'px';
+    hoverCard.style.visibility = 'visible';
+  }
+
+  function showSummary(uma, cx, cy) {
+    hcSummary.innerHTML = buildSummary(uma);
+    hcDetail.innerHTML  = '';
+    hoverCard.classList.remove('expanded');
+    positionCard(cx, cy);
+  }
+
+  function expandCard(uma) {
+    _pinnedUmaId       = uma.trained_chara_id;
+    hcDetail.innerHTML = buildDetail(uma);
+    hoverCard.classList.add('expanded');
+  }
+
+  function collapseCard() {
+    _pinnedUmaId = null;
+    hoverCard.style.display = 'none';   /* back to 'flex' when shown via positionCard */
+    hoverCard.classList.remove('expanded');
+    hcDetail.innerHTML = '';
+  }
+
+  document.addEventListener('mousemove', e => {
+    if (_pinnedUmaId !== null) return;   // pinned — card stays put
+    const row = e.target.closest('.has-hover');
+    if (!row || !_lastResults) { hoverCard.style.display = 'none'; return; }
+    const umaId = parseInt(row.dataset.umaId);
+    const uma   = _lastResults.find(u => u.trained_chara_id === umaId);
+    if (!uma || !(uma.factors?.length)) { hoverCard.style.display = 'none'; return; }
+    showSummary(uma, e.clientX, e.clientY);
+  });
+
+  document.addEventListener('click', e => {
+    // Clicks inside the expanded card (e.g. scrolling via trackpad tap) don't collapse it
+    if (_pinnedUmaId !== null && hoverCard.contains(e.target)) return;
+
+    const row = e.target.closest('.has-hover');
+    if (!row || !_lastResults) {
+      if (_pinnedUmaId !== null) collapseCard();
+      return;
+    }
+    const umaId = parseInt(row.dataset.umaId);
+    const uma   = _lastResults.find(u => u.trained_chara_id === umaId);
+    if (!uma || !(uma.factors?.length)) return;
+
+    const hasWhites = (uma.factors ?? []).some(f => f.type === 'white');
+    if (_pinnedUmaId === umaId) {
+      // Same uma — collapse/unpin
+      collapseCard();
+    } else if (hasWhites) {
+      // New uma with whites — show summary at click position then expand
+      showSummary(uma, e.clientX, e.clientY);
+      expandCard(uma);
+    }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && _pinnedUmaId !== null) collapseCard();
+  });
+</script>
 </body>
-
 </html>

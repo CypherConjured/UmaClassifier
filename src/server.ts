@@ -10,7 +10,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classifyRoster } from './classifier.ts';
 import { buildSkillRelevanceMap, getRaceMap, lookupCharName } from './loader.ts';
-import { DEFAULT_CONFIG, RaceEnvironment } from './types.ts';
+import { DEFAULT_CONFIG } from './types.ts';
+import type { RaceEnvironment } from './types.ts';
 
 const PORT = 3000;
 
@@ -74,11 +75,25 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
         : undefined;
       const results = classifyRoster(body.data, config, skillRelevance);
       const named = results.map(r => ({ ...r, name: lookupCharName(r.card_id) }));
+      const targetRace = env?.raceId ? (getRaceMap().get(env.raceId) ?? null) : null;
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ results: named, env }));
+      res.end(JSON.stringify({ results: named, env, targetRace }));
     } catch (e) {
       res.writeHead(400, { 'Content-Type': 'text/plain' });
       res.end(String(e));
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && req.url?.startsWith('/icons/')) {
+    const name = req.url.slice('/icons/'.length).replace(/[^a-zA-Z0-9_.-]/g, '');
+    try {
+      const data = readFileSync(join(__dirname, 'assets', 'icons', name));
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' });
+      res.end(data);
+    } catch {
+      res.writeHead(404);
+      res.end('Not found');
     }
     return;
   }
