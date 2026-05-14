@@ -335,6 +335,49 @@
     }
     #viewToggleBtn { padding: 0.4rem 1rem; font-size: 0.85rem; }
 
+    /* ── Label tooltips ─────────────────────────────────────────────── */
+    .tip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: #ddd;
+      color: #888;
+      font-size: 0.6rem;
+      font-weight: 700;
+      font-style: normal;
+      text-transform: none;
+      letter-spacing: 0;
+      cursor: help;
+      position: relative;
+      margin-left: 3px;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+    .tip::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 6px);
+      transform: translateX(-50%);
+      background: #333;
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 400;
+      line-height: 1.45;
+      padding: 0.4rem 0.55rem;
+      border-radius: 5px;
+      white-space: normal;
+      width: 220px;
+      text-align: left;
+      pointer-events: none;
+      display: none;
+      z-index: 300;
+    }
+    .tip:hover::after { display: block; }
+
     /* ── Hover card ──────────────────────────────────────────────────── */
     .has-hover { cursor: pointer; }
 
@@ -347,27 +390,50 @@
       border-radius: 8px;
       box-shadow: 0 4px 16px #0002;
       padding: 0.75rem;
-      min-width: 340px;
-      max-width: 480px;
-      max-height: 80vh;
-      overflow-y: auto;
       font-size: 0.8rem;
       pointer-events: none;
+      max-width: min(92vw, 780px);
     }
-    .hover-card h4 { margin: 0 0 0.4rem; font-size: 0.85rem; }
+    .hover-card h4 { margin: 0 0 0.5rem; font-size: 0.85rem; }
+    .hc-panes { display: flex; gap: 1.25rem; align-items: flex-start; }
+    .hc-pane-bp { flex-shrink: 0; min-width: 170px; }
+    .hc-pane-skills { flex: 1; min-width: 0; }
     .hc-section-label {
-      font-size: 0.68rem;
+      font-size: 0.67rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: #aaa;
-      margin: 0.5rem 0 0.2rem;
+      margin: 0.55rem 0 0.2rem;
     }
-    .hc-section-label:first-of-type { margin-top: 0; }
-    .hover-card table { width: 100%; font-size: 0.78rem; }
-    .hover-card th { color: #aaa; font-weight: 600; padding: 0.2rem 0.4rem; border-bottom: 1px solid #eee; }
-    .hover-card td { padding: 0.2rem 0.4rem; border-bottom: 1px solid #f8f8f8; }
+    .hc-section-label:first-child { margin-top: 0; }
+    .hover-card table { width: 100%; font-size: 0.77rem; }
+    .hover-card th { color: #aaa; font-weight: 600; padding: 0.15rem 0.35rem; border-bottom: 1px solid #eee; }
+    .hover-card td { padding: 0.15rem 0.35rem; border-bottom: 1px solid #f8f8f8; white-space: nowrap; }
     .hover-card tr:last-child td { border-bottom: none; }
+    /* White skills — two-column grid */
+    .white-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 0.75rem;
+    }
+    .white-item {
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+      font-size: 0.76rem;
+      padding: 0.1rem 0;
+      border-bottom: 1px solid #f8f8f8;
+      min-width: 0;
+    }
+    .white-name {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .white-val { font-weight: 600; white-space: nowrap; }
 
     .tag {
       display: inline-block;
@@ -411,27 +477,27 @@
       </div>
       <div class="controls-row">
         <div class="field">
-          <label>Keep per archetype</label>
+          <label>Keep per archetype<span class="tip" data-tip="Max umas kept per archetype label (e.g. 'front × turf/mile'). Umas in the same group are ranked by quality score.">i</span></label>
           <input type="number" id="keepN" value="7" min="1" max="50">
         </div>
         <div class="field">
-          <label>Max per icon</label>
+          <label>Max per icon<span class="tip" data-tip="Hard cap on total umas assigned to each icon type across all archetype groups.">i</span></label>
           <input type="number" id="maxPerIcon" value="10" min="1" max="100">
         </div>
         <div class="field">
-          <label>Trash count</label>
+          <label>Trash count<span class="tip" data-tip="Number of lowest-quality umas to flag as transfer candidates.">i</span></label>
           <input type="number" id="numTrash" value="50" min="0" max="500">
         </div>
       </div>
       <div class="controls-row">
         <div class="field">
-          <label>Target Race</label>
+          <label>Target Race<span class="tip" data-tip="Score skill relevance against this race. White skills matching the race's distance and surface receive a 2× bonus; mismatches score 0.">i</span></label>
           <select id="targetRace">
             <option value="">— None —</option>
           </select>
         </div>
         <div class="field">
-          <label>Top N parents</label>
+          <label>Top N parents<span class="tip" data-tip="How many top race-scoring umas to show in the race parents section.">i</span></label>
           <input type="number" id="raceTopN" value="7" min="1" max="50">
         </div>
       </div>
@@ -444,27 +510,27 @@
     <div class="tab-body">
       <div class="controls-row">
         <div class="field">
-          <label>Ace rank score ≥</label>
+          <label>Ace rank score ≥<span class="tip" data-tip="Minimum in-game rank score to qualify for the Ace icon (high-stats racing fallback).">i</span></label>
           <input type="number" id="aceThresh" value="12500" min="0" step="100">
         </div>
         <div class="field">
-          <label>Keep aces</label>
+          <label>Keep aces<span class="tip" data-tip="Maximum number of umas that can receive the Ace icon.">i</span></label>
           <input type="number" id="keepAce" value="15" min="1" max="100">
         </div>
       </div>
       <div class="controls-row">
         <div class="field">
-          <label>Heart white ≥</label>
+          <label>Heart white ≥<span class="tip" data-tip="Minimum total white-spark score to qualify for the Heart icon (skill collector).">i</span></label>
           <input type="number" id="heartThresh" value="20" min="0" step="0.5">
         </div>
         <div class="field">
-          <label>Keep hearts</label>
+          <label>Keep hearts<span class="tip" data-tip="Maximum number of umas that can receive the Heart icon.">i</span></label>
           <input type="number" id="keepHeart" value="20" min="1" max="100">
         </div>
       </div>
       <div class="controls-row">
         <div class="field">
-          <label>Min category score</label>
+          <label>Min category score<span class="tip" data-tip="Minimum score an uma needs in a category to be ranked within it. Filters out noise.">i</span></label>
           <input type="number" id="minScore" value="2" min="0" step="0.5">
         </div>
       </div>
@@ -478,7 +544,7 @@
       <div class="weights-grid">
 
         <div class="weight-group">
-          <div class="weight-group-label">Blues</div>
+          <div class="weight-group-label">Blues<span class="tip" data-tip="Stat-boost spark weights per rarity. A 3★ own speed spark adds this value to all icon scores.">i</span></div>
           <table class="wt">
             <tr><th></th><th>3★</th><th>2★</th><th>1★</th></tr>
             <tr><td>own</td>
@@ -495,7 +561,7 @@
         </div>
 
         <div class="weight-group">
-          <div class="weight-group-label">Pinks</div>
+          <div class="weight-group-label">Pinks<span class="tip" data-tip="Aptitude spark weights per rarity. Turf/dirt/distance/style pinks. Own = on this uma, parent = from direct parents.">i</span></div>
           <table class="wt">
             <tr><th></th><th>3★</th><th>2★</th><th>1★</th></tr>
             <tr><td>own</td>
@@ -512,7 +578,7 @@
         </div>
 
         <div class="weight-group">
-          <div class="weight-group-label">Skill Sparks</div>
+          <div class="weight-group-label">Skill Sparks<span class="tip" data-tip="White-spark (skill hint) weights per rarity. Own = carried on this uma directly, parent = from parents. Skills matching the race surface/distance get a bonus.">i</span></div>
           <table class="wt">
             <tr><th></th><th>3★</th><th>2★</th><th>1★</th></tr>
             <tr><td>own</td>
@@ -529,7 +595,7 @@
         </div>
 
         <div class="weight-group">
-          <div class="weight-group-label">Stat Sparks</div>
+          <div class="weight-group-label">Stat Sparks<span class="tip" data-tip="Weights for stat-boosting skills found inside white sparks (e.g. Speed Up). Applied on top of the base skill-spark weight when such skills are detected.">i</span></div>
           <table class="wt">
             <tr><th></th><th>3★</th><th>2★</th><th>1★</th></tr>
             <tr><td>own</td>
@@ -549,27 +615,27 @@
 
       <div class="misc-weights">
         <div class="field">
-          <label>Parent weight</label>
+          <label>Parent weight<span class="tip" data-tip="Global multiplier on all parent-sourced contributions. Values below 1.0 discount inherited factors relative to own.">i</span></label>
           <input type="number" id="weightParent" step="0.05" min="0" max="2">
         </div>
         <div class="field">
-          <label>Dirt affinity</label>
+          <label>Dirt affinity<span class="tip" data-tip="Extra score bonus applied when this uma's dominant surface is dirt. Rewards dirt-tuned umas in surface-agnostic scoring.">i</span></label>
           <input type="number" id="dirtAffinity" step="0.1" min="0">
         </div>
         <div class="field">
-          <label>Unique mult</label>
+          <label>Unique mult<span class="tip" data-tip="Score multiplier applied when a uma's own unique (character signature) skill appears as a white spark. Rewards umas carrying their signature skill.">i</span></label>
           <input type="number" id="uniqueMult" step="0.05" min="0">
         </div>
         <div class="field">
-          <label>Mismatch surface</label>
+          <label>Mismatch surface<span class="tip" data-tip="Multiplier applied to skills whose surface tag (turf/dirt) doesn't match the uma's dominant surface. Set to 0 to fully ignore mismatched skills.">i</span></label>
           <input type="number" id="mmSurface" step="0.05" min="0">
         </div>
         <div class="field">
-          <label>Mismatch distance</label>
+          <label>Mismatch distance<span class="tip" data-tip="Multiplier applied to skills whose distance tag doesn't match the uma's dominant distance category. Set to 0 to fully ignore mismatched skills.">i</span></label>
           <input type="number" id="mmDistance" step="0.05" min="0">
         </div>
         <div class="field">
-          <label>Mismatch style</label>
+          <label>Mismatch style<span class="tip" data-tip="Multiplier applied to skills whose running-style tag doesn't match the uma's dominant style. Set to 0 to fully ignore mismatched skills.">i</span></label>
           <input type="number" id="mmStyle" step="0.05" min="0">
         </div>
       </div>
@@ -1136,7 +1202,7 @@
     // Pinks
     const pinks = factors.filter(f => f.type === 'pink').sort((a, b) => b.contribution - a.contribution);
     const pinkRows = pinks.map(f => {
-      const dim = f.secondary_category === 'dominant' ? ' <span class="tag tag-style">dominant</span>' : '';
+      const dim = f.secondary_category === 'dominant' ? ' <span class="tag tag-style">dom</span>' : '';
       return `<tr>
         <td>${src(f)}</td><td>${stars(f)}</td>
         <td style="color:#846">${f.category}${dim}</td>
@@ -1144,37 +1210,37 @@
       </tr>`;
     }).join('');
 
-    // Whites + greens (unique) combined
+    // Whites + greens (unique) — compact two-column grid
     const skills = factors
       .filter(f => f.type === 'white' || f.type === 'unique')
       .sort((a, b) => b.contribution - a.contribution);
-    const skillRows = skills.map(w => {
-      const tags = [
-        ...(w.dist_cats  ?? []).map(c => `<span class="tag tag-dist">${c}</span>`),
-        ...(w.style_cats ?? []).map(c => `<span class="tag tag-style">${c}</span>`),
-        ...(w.surf_cats  ?? []).map(c => `<span class="tag tag-surf">${c}</span>`),
-        ...(w.is_debuff  ? ['<span class="tag tag-debuff">debuff</span>'] : []),
-      ].join('');
-      const pm = (w.pink_multiplier ?? 1) > 1 ? (w.pink_multiplier).toFixed(2) + '×' : '-';
-      const sb = (w.special_bonus   ?? 1) > 1 ? (w.special_bonus).toFixed(1)   + '×' : '-';
-      const typeLabel = w.type === 'unique' ? '<span class="tag tag-style">unique</span>' : '';
-      return `<tr>
-        <td>${src(w)}</td><td>${stars(w)}</td>
-        <td>${w.name}${typeLabel}${tags ? '<br>' + tags : ''}</td>
-        <td style="color:#aaa">${pm}</td>
-        <td style="color:#aaa">${sb}</td>
-        <td style="font-weight:600">${w.contribution.toFixed(2)}</td>
-      </tr>`;
+    const skillItems = skills.map(w => {
+      const uniqueTag = w.type === 'unique' ? ' ✦' : '';
+      const debuffTag = w.is_debuff ? ' ⚡' : '';
+      const valColor  = w.contribution < 0 ? '#c00' : '#555';
+      return `<div class="white-item" title="${w.name}${uniqueTag}${debuffTag}">
+        ${src(w)}
+        <span style="color:#bbb;font-size:0.7rem">${stars(w)}</span>
+        <span class="white-name">${w.name}${uniqueTag}${debuffTag}</span>
+        <span class="white-val" style="color:${valColor}">${w.contribution.toFixed(2)}</span>
+      </div>`;
     }).join('');
 
-    const section = (label, headers, rows) => rows ? `
+    const bpSection = (label, headers, rows) => !rows ? '' : `
       <div class="hc-section-label">${label}</div>
-      <table><tr>${headers}</tr>${rows}</table>` : '';
+      <table><tr>${headers}</tr>${rows}</table>`;
 
     hoverCard.innerHTML = `<h4>${uma.name ?? uma.trained_chara_id}</h4>
-      ${section('Blues', '<th>src</th><th>★</th><th>stat</th><th>val</th>', blueRows)}
-      ${section('Pinks', '<th>src</th><th>★</th><th>category</th><th>val</th>', pinkRows)}
-      ${section('Skills', '<th>src</th><th>★</th><th>skill</th><th>pink×</th><th>bonus×</th><th>val</th>', skillRows)}`;
+      <div class="hc-panes">
+        <div class="hc-pane-bp">
+          ${bpSection('Blues', '<th>src</th><th>★</th><th>stat</th><th>val</th>', blueRows)}
+          ${bpSection('Pinks', '<th>src</th><th>★</th><th>category</th><th>val</th>', pinkRows)}
+        </div>
+        ${skills.length ? `<div class="hc-pane-skills">
+          <div class="hc-section-label">Skills (${skills.length})</div>
+          <div class="white-grid">${skillItems}</div>
+        </div>` : ''}
+      </div>`;
 
     // Position near cursor, keep on-screen
     const pad = 16;
