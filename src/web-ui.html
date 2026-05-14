@@ -354,7 +354,16 @@
       font-size: 0.8rem;
       pointer-events: none;
     }
-    .hover-card h4 { margin: 0 0 0.5rem; font-size: 0.85rem; }
+    .hover-card h4 { margin: 0 0 0.4rem; font-size: 0.85rem; }
+    .hc-section-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #aaa;
+      margin: 0.5rem 0 0.2rem;
+    }
+    .hc-section-label:first-of-type { margin-top: 0; }
     .hover-card table { width: 100%; font-size: 0.78rem; }
     .hover-card th { color: #aaa; font-weight: 600; padding: 0.2rem 0.4rem; border-bottom: 1px solid #eee; }
     .hover-card td { padding: 0.2rem 0.4rem; border-bottom: 1px solid #f8f8f8; }
@@ -1010,6 +1019,7 @@
 
     let html = '<div class="summary">';
     for (const icon of ICON_ORDER) {
+      if (icon === 'skip') continue;
       if (groups[icon]?.length > 0)
         html += `<span class="summary-chip">${ICON_LABEL[icon] ?? icon}: <b>${groups[icon].length}</b></span>`;
     }
@@ -1019,6 +1029,7 @@
     html += renderRaceSection(results, _lastTargetRace, topN);
 
     for (const icon of ICON_ORDER) {
+      if (icon === 'skip') continue;
       html += renderGroup(icon, groups[icon] ?? [], showRaceScore);
     }
 
@@ -1106,43 +1117,64 @@
     const uma = _lastResults.find(u => u.trained_chara_id === umaId);
     if (!uma) { hoverCard.style.display = 'none'; return; }
 
-    // Filter factors for white skills
-    const whites = (uma.factors ?? [])
-      .filter(f => f.type === 'white')
+    const factors = uma.factors ?? [];
+    if (factors.length === 0) { hoverCard.style.display = 'none'; return; }
+
+    const src = f => f.source === 'own'
+      ? '<span class="src-own">own</span>'
+      : '<span class="src-parent">par</span>';
+    const stars = f => '★'.repeat(f.stars) + '☆'.repeat(3 - f.stars);
+
+    // Blues
+    const blues = factors.filter(f => f.type === 'blue').sort((a, b) => b.contribution - a.contribution);
+    const blueRows = blues.map(f => `<tr>
+      <td>${src(f)}</td><td>${stars(f)}</td>
+      <td style="color:#668">${f.category}</td>
+      <td style="font-weight:600;color:${f.contribution < 0 ? '#c00' : 'inherit'}">${f.contribution.toFixed(2)}</td>
+    </tr>`).join('');
+
+    // Pinks
+    const pinks = factors.filter(f => f.type === 'pink').sort((a, b) => b.contribution - a.contribution);
+    const pinkRows = pinks.map(f => {
+      const dim = f.secondary_category === 'dominant' ? ' <span class="tag tag-style">dominant</span>' : '';
+      return `<tr>
+        <td>${src(f)}</td><td>${stars(f)}</td>
+        <td style="color:#846">${f.category}${dim}</td>
+        <td style="font-weight:600;color:${f.contribution < 0 ? '#c00' : 'inherit'}">${f.contribution.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+
+    // Whites + greens (unique) combined
+    const skills = factors
+      .filter(f => f.type === 'white' || f.type === 'unique')
       .sort((a, b) => b.contribution - a.contribution);
-
-    if (whites.length === 0) {
-      hoverCard.style.display = 'none';
-      return;
-    }
-
-    const rows = whites.map(w => {
+    const skillRows = skills.map(w => {
       const tags = [
         ...(w.dist_cats  ?? []).map(c => `<span class="tag tag-dist">${c}</span>`),
         ...(w.style_cats ?? []).map(c => `<span class="tag tag-style">${c}</span>`),
         ...(w.surf_cats  ?? []).map(c => `<span class="tag tag-surf">${c}</span>`),
         ...(w.is_debuff  ? ['<span class="tag tag-debuff">debuff</span>'] : []),
       ].join('');
-      const src = w.source === 'own'
-        ? '<span class="src-own">own</span>'
-        : '<span class="src-parent">par</span>';
-      const pm = (w.pink_multiplier ?? 1) === 1.0 ? '-' : (w.pink_multiplier ?? 1).toFixed(2) + '×';
-      const sb = (w.special_bonus   ?? 1) === 1.0 ? '-' : (w.special_bonus   ?? 1).toFixed(1) + '×';
+      const pm = (w.pink_multiplier ?? 1) > 1 ? (w.pink_multiplier).toFixed(2) + '×' : '-';
+      const sb = (w.special_bonus   ?? 1) > 1 ? (w.special_bonus).toFixed(1)   + '×' : '-';
+      const typeLabel = w.type === 'unique' ? '<span class="tag tag-style">unique</span>' : '';
       return `<tr>
-        <td>${src}</td>
-        <td>${'★'.repeat(w.stars)}</td>
-        <td>${w.name}${tags ? '<br>' + tags : ''}</td>
+        <td>${src(w)}</td><td>${stars(w)}</td>
+        <td>${w.name}${typeLabel}${tags ? '<br>' + tags : ''}</td>
         <td style="color:#aaa">${pm}</td>
         <td style="color:#aaa">${sb}</td>
         <td style="font-weight:600">${w.contribution.toFixed(2)}</td>
       </tr>`;
     }).join('');
 
-    hoverCard.innerHTML = `<h4>White sparks — ${uma.name ?? uma.trained_chara_id}</h4>
-      <table>
-        <tr><th>src</th><th>★</th><th>skill</th><th>pink×</th><th>bonus×</th><th>val</th></tr>
-        ${rows}
-      </table>`;
+    const section = (label, headers, rows) => rows ? `
+      <div class="hc-section-label">${label}</div>
+      <table><tr>${headers}</tr>${rows}</table>` : '';
+
+    hoverCard.innerHTML = `<h4>${uma.name ?? uma.trained_chara_id}</h4>
+      ${section('Blues', '<th>src</th><th>★</th><th>stat</th><th>val</th>', blueRows)}
+      ${section('Pinks', '<th>src</th><th>★</th><th>category</th><th>val</th>', pinkRows)}
+      ${section('Skills', '<th>src</th><th>★</th><th>skill</th><th>pink×</th><th>bonus×</th><th>val</th>', skillRows)}`;
 
     // Position near cursor, keep on-screen
     const pad = 16;
