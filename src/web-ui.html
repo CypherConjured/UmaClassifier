@@ -392,7 +392,10 @@
       padding: 0.75rem;
       font-size: 0.8rem;
       pointer-events: none;
-      max-width: min(92vw, 780px);
+      /* horizontal flex so whites pane slides in to the right */
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 0;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
     .hover-card.expanded {
@@ -400,56 +403,44 @@
       box-shadow: 0 4px 24px #e8934a22;
     }
 
-    /* Summary pane */
+    /* Summary pane — left column, always visible */
+    .hc-summary { flex-shrink: 0; min-width: 200px; }
     .hc-name { font-weight: 700; font-size: 0.88rem; margin-bottom: 0.18rem; }
     .hc-meta { font-size: 0.75rem; color: #888; margin-bottom: 0.3rem; }
-    .hc-tally { display: flex; flex-wrap: wrap; gap: 0.25rem; }
-    .hc-tally-chip {
-      padding: 0.05rem 0.4rem;
-      border-radius: 3px;
-      font-size: 0.67rem;
-      font-weight: 600;
-    }
-    .hc-chip-blue  { background: #e0edf8; color: #446; }
-    .hc-chip-pink  { background: #f8ddf0; color: #846; }
-    .hc-chip-skill { background: #f0f0f0; color: #666; }
-    .hc-chip-debuff{ background: #f8e8e8; color: #844; }
     .hc-expand-hint {
-      margin-top: 0.35rem;
+      margin-top: 0.4rem;
       font-size: 0.64rem;
       color: #ccc;
       letter-spacing: 0.04em;
     }
     .hover-card.expanded .hc-expand-hint { display: none; }
-    .hover-card.expanded .hc-summary {
-      border-bottom: 1px solid #f0f0f0;
-      padding-bottom: 0.5rem;
-      margin-bottom: 0.5rem;
-    }
 
-    /* Detail pane — animates open */
+    /* Detail pane — whites column, slides in horizontally */
     .hc-detail {
       overflow: hidden;
-      max-height: 0;
+      max-width: 0;
       opacity: 0;
-      transition: max-height 0.28s ease, opacity 0.2s ease;
+      transition: max-width 0.28s ease, opacity 0.2s ease;
     }
     .hover-card.expanded .hc-detail {
-      max-height: 700px;
+      max-width: 520px;
       opacity: 1;
     }
+    /* Inner wrapper gives the whites column its fixed width + scrollability */
+    .hc-detail-inner {
+      width: 320px;
+      padding-left: 1rem;
+      margin-left: 0.25rem;
+      border-left: 1px solid #eee;
+      max-height: min(70vh, 480px);
+      overflow-y: auto;
+    }
     .hc-collapse-hint {
-      text-align: center;
       margin-top: 0.5rem;
       font-size: 0.64rem;
       color: #ccc;
       letter-spacing: 0.04em;
     }
-
-    /* Detail internals */
-    .hc-panes { display: flex; gap: 1.25rem; align-items: flex-start; }
-    .hc-pane-bp { flex-shrink: 0; min-width: 170px; }
-    .hc-pane-skills { flex: 1; min-width: 0; }
     .hc-section-label {
       font-size: 0.67rem;
       font-weight: 700;
@@ -1276,17 +1267,12 @@
       ? `<div class="hc-expand-hint">+ ${whites.length} white skills — click for details</div>`
       : '';
 
+    // Blues, pinks, uniques stacked vertically in a single column
     return `<div class="hc-name">${lock}${uma.name ?? uma.trained_chara_id}</div>
       <div class="hc-meta">${uma.rank_score.toLocaleString()} &nbsp;·&nbsp; ${arch}</div>
-      <div class="hc-panes">
-        <div class="hc-pane-bp">
-          ${section('Blues', '<th>src</th><th>★</th><th>stat</th><th>val</th>', blueRows)}
-          ${section('Pinks', '<th>src</th><th>★</th><th>category</th><th>val</th>', pinkRows)}
-        </div>
-        ${uniqueRows ? `<div class="hc-pane-skills">
-          ${section('Unique', '<th>src</th><th>★</th><th>skill</th><th>val</th>', uniqueRows)}
-        </div>` : ''}
-      </div>
+      ${section('Blues',  '<th>src</th><th>★</th><th>stat</th><th>val</th>',      blueRows)}
+      ${section('Pinks',  '<th>src</th><th>★</th><th>category</th><th>val</th>',  pinkRows)}
+      ${section('Unique', '<th>src</th><th>★</th><th>skill</th><th>val</th>',     uniqueRows)}
       ${expandHint}`;
   }
 
@@ -1306,15 +1292,17 @@
       </div>`;
     }).join('');
 
-    return `<div class="hc-section-label">White Skills (${whites.length})</div>
+    return `<div class="hc-detail-inner">
+      <div class="hc-section-label" style="margin-top:0">White Skills (${whites.length})</div>
       <div class="white-grid">${whiteItems}</div>
-      <div class="hc-collapse-hint">▲ click to collapse</div>`;
+      <div class="hc-collapse-hint">▲ click to collapse</div>
+    </div>`;
   }
 
   function positionCard(cx, cy) {
     const pad = 16;
     hoverCard.style.visibility = 'hidden';
-    hoverCard.style.display    = 'block';
+    hoverCard.style.display    = 'flex';
     const rect = hoverCard.getBoundingClientRect();
     let x = cx + pad;
     let y = cy + pad;
@@ -1341,7 +1329,7 @@
 
   function collapseCard() {
     _pinnedUmaId = null;
-    hoverCard.style.display = 'none';
+    hoverCard.style.display = 'none';   /* back to 'flex' when shown via positionCard */
     hoverCard.classList.remove('expanded');
     hcDetail.innerHTML = '';
   }
