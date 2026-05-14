@@ -63,9 +63,10 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       };
       const env: RaceEnvironment | undefined = body.targetRaceId
       ? {
-          raceId:         body.targetRaceId,
+          raceId:          body.targetRaceId,
           groundCondition: body.groundCondition ?? undefined,
           weather:         body.weather         ?? undefined,
+          season:          body.season          ?? undefined,
           runningStyle:    body.runningStyle     ?? undefined,
         }
       : undefined;

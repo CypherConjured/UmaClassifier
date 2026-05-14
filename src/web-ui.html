@@ -457,6 +457,48 @@
           <input type="number" id="raceTopN" value="7" min="1" max="50">
         </div>
       </div>
+      <div class="controls-row">
+        <div class="field">
+          <label>Season<span class="tip" data-tip="Race season (Spring/Summer/Fall/Winter). Affects season-specific skill relevance when a target race is set.">i</span></label>
+          <select id="rSeason" style="min-width:130px">
+            <option value="">— Any —</option>
+            <option value="1">Spring</option>
+            <option value="2">Summer</option>
+            <option value="3">Fall</option>
+            <option value="4">Winter</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Ground condition<span class="tip" data-tip="Track condition on race day. Skills that activate on specific conditions (e.g. Soft-only) score higher when matched.">i</span></label>
+          <select id="rGround" style="min-width:130px">
+            <option value="">— Any —</option>
+            <option value="1">Firm</option>
+            <option value="2">Good</option>
+            <option value="3">Soft</option>
+            <option value="4">Heavy</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Weather<span class="tip" data-tip="Race day weather. Skills restricted to specific weather conditions score higher when matched.">i</span></label>
+          <select id="rWeather" style="min-width:130px">
+            <option value="">— Any —</option>
+            <option value="1">Sunny</option>
+            <option value="2">Cloudy</option>
+            <option value="3">Rainy</option>
+            <option value="4">Snowy</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Running style<span class="tip" data-tip="Your target running strategy. Skills tagged for other styles may score lower depending on the mismatch-style multiplier.">i</span></label>
+          <select id="rStyle" style="min-width:130px">
+            <option value="">— Any —</option>
+            <option value="1">Front</option>
+            <option value="2">Pace</option>
+            <option value="3">Late</option>
+            <option value="4">End</option>
+          </select>
+        </div>
+      </div>
     </div>
   </details>
 
@@ -670,6 +712,7 @@
   // ── Default settings (mirrors DEFAULT_CONFIG + UI prefs) ──────────────
   const DEFAULTS = {
     keepN: 7, maxPerIcon: 10, numTrash: 50, raceTopN: 7,
+    rSeason: '', rGround: '', rWeather: '', rStyle: '',
     aceThresh: 12500, keepAce: 15,
     heartThresh: 20,  keepHeart: 20,
     minScore: 2,
@@ -744,6 +787,8 @@
       if (el) el.value = val;
     }
     g('targetRace').value = '';
+    g('rSeason').value = ''; g('rGround').value = '';
+    g('rWeather').value = ''; g('rStyle').value = '';
   }
 
   function exportConfig() {
@@ -870,7 +915,11 @@
       body: JSON.stringify({
         data: JSON.parse(text),
         config,
-        targetRaceId: targetRaceId ? parseInt(targetRaceId) : null,
+        targetRaceId:    targetRaceId       ? parseInt(targetRaceId)  : null,
+        groundCondition: gv('rGround')  ? parseInt(gv('rGround'))  : null,
+        weather:         gv('rWeather') ? parseInt(gv('rWeather')) : null,
+        season:          gv('rSeason')  ? parseInt(gv('rSeason'))  : null,
+        runningStyle:    gv('rStyle')   ? parseInt(gv('rStyle'))   : null,
       }),
     });
 
